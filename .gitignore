@@ -3,6 +3,6 @@ artic_topartworks_public.docarray
 .ipynb_checkpoints/
 converter.py:Zone.Identifier
 .env
-__pycache__
-.pytest_cache
+__pycache__/
+.pytest_cache/
 notebooks/
