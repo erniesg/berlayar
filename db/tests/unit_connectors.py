@@ -1,34 +1,61 @@
-import unittest
-from unittest.mock import patch, MagicMock, ANY  # <-- Import ANY here
 import os
-
-# Import the ingest_git_repo function from connectors.py
+import shutil
+import tempfile
+import unittest
+from unittest.mock import patch, Mock
 from db.connectors import ingest_git_repo
 
 class TestIngestGitRepo(unittest.TestCase):
 
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir)
+
     @patch('db.connectors.git.Repo')
     @patch('db.connectors.git.cmd.Git')
-    @patch('db.connectors.os')
-    @patch('db.connectors.shutil.copytree')  # Mock the shutil.copytree method
-    def test_ingest_git_repo(self, mock_copytree, mock_os, mock_git_cmd, mock_git_repo):
-        # Mock the necessary methods and attributes
-        mock_os.path.exists.return_value = False
-        mock_git_repo.return_value.head.commit.hexsha = '1234567890abcdef'
-        mock_os.path.join.side_effect = os.path.join
+    def test_clone_existing_repo(self, mock_Git, mock_Repo):
+        repo_url = 'https://github.com/erniesg/berlayar.git'
+        repo_name = 'berlayar'
+        commit_id = 'fake_commit_id'
+        commit_id_path = os.path.join(self.temp_dir, 'raw_data', 'git', 'test_git', repo_name, commit_id)
+
+        # Mock the existence of the repository
+        mock_Repo.return_value.exists.return_value = True
+        mock_Repo.return_value.remote.return_value = Mock()
 
         # Call the function
-        repo_url = "https://github.com/example/testrepo.git"
-        base_path = "/path/to/base"
-        final_path = ingest_git_repo(repo_url, base_path)
+        result = ingest_git_repo(repo_url, self.temp_dir)
 
-        # Assert that the returned path is not None
-        self.assertIsNotNone(final_path)
+        # Check if the correct paths are returned
+        self.assertEqual(result, commit_id_path)
+        mock_Git.assert_not_called()
+        mock_Repo.assert_called_once_with(commit_id_path)
+        mock_Repo.return_value.remote.assert_called_once_with(name='origin')
+        mock_Repo.return_value.remote.return_value.pull.assert_called_once()
 
-        # Assert that the copytree function was called to copy the repo contents to the commit_id folder
-        expected_repo_path = os.path.join(base_path, '..', 'raw_data', 'git', 'testrepo')
-        expected_commit_id_path = os.path.join(expected_repo_path, '1234567890abcdef')
-        mock_copytree.assert_called_once_with(expected_repo_path, expected_commit_id_path, ignore=ANY)
+    @patch('db.connectors.git.Repo')
+    @patch('db.connectors.git.cmd.Git')
+    def test_clone_new_repo(self, mock_Git, mock_Repo):
+        repo_url = 'https://github.com/erniesg/berlayar.git'
+        repo_name = 'berlayar'
+        commit_id = 'fake_commit_id'
+        commit_id_path = os.path.join(self.temp_dir, 'raw_data', 'git', 'test_git', repo_name, commit_id)
+
+        # Mock the non-existence of the repository
+        mock_Repo.return_value.exists.return_value = False
+        mock_Repo.return_value.remote.return_value = Mock()
+
+        # Call the function
+        result = ingest_git_repo(repo_url, self.temp_dir)
+
+        # Check if the correct paths are returned
+        self.assertEqual(result, commit_id_path)
+        mock_Git().clone.assert_called_once_with(
+            repo_url, commit_id_path, depth=1, branch='master')
+        mock_Repo.assert_called_once_with(commit_id_path)
+        mock_Repo.return_value.remote.assert_not_called()
 
 if __name__ == '__main__':
     unittest.main()

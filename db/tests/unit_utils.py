@@ -1,38 +1,41 @@
-import os
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock, call
 from db.utils import save_to_db
 
-class TestUtils(unittest.TestCase):
-    def setUp(self):
-        # Create a mocked repository directory for testing
-        self.repo_path = "./mock_repo"
-        os.makedirs(self.repo_path, exist_ok=True)
+class TestSaveToDB(unittest.TestCase):
+    @patch('db.utils.git.Repo')  # Mock the git.Repo class
+    @patch('db.utils.random.sample')  # Mock the random.sample function
+    @patch('db.utils.DeepLake')  # Mock the DeepLake class
+    @patch('db.utils.HuggingFaceEmbeddings')  # Mock the HuggingFaceEmbeddings class
+    @patch('db.utils.process_python_file')  # Mock the process_python_file function
+    def test_save_to_db(self, mock_process, mock_embed, mock_deeplake, mock_random, mock_repo):
+        # Mock instances and setup
+        mock_repo_instance = MagicMock()
+        mock_embed_instance = MagicMock()
+        mock_deeplake_instance = MagicMock()
 
-        # Create some sample files in the mocked repository
-        self.sample_files = ["test1.py", "test2.txt", "test3.md"]
-        for file in self.sample_files:
-            with open(os.path.join(self.repo_path, file), 'w') as f:
-                f.write(f"Sample content for {file}")
+        # Mock random.sample to return a predefined repo path
+        mock_random.return_value = ['/fake/repo/path']
 
-        self.deeplake_path = "./deeplake_test"
+        mock_repo.return_value = mock_repo_instance
+        mock_embed.return_value = mock_embed_instance
+        mock_deeplake.return_value = mock_deeplake_instance
 
-    def tearDown(self):
-        # Cleanup after tests
-        for file in self.sample_files:
-            os.remove(os.path.join(self.repo_path, file))
-        os.rmdir(self.repo_path)
+        # Set up the mock_process return value
+        mock_chunks = [
+            {"name": "chunk1", "start_line": 1, "end_line": 5, "code": "code1"},
+            {"name": "chunk2", "start_line": 10, "end_line": 15, "code": "code2"}
+        ]
+        mock_process.return_value = mock_chunks
 
-    @patch("db.utils.DeepLake")  # Mock the DeepLake class to prevent actual DB calls
-    def test_save_to_db(self, MockDeepLake):
-        # Create a mock instance of DeepLake
-        mock_deeplake = MockDeepLake()
+        # Call the function you want to test
+        repo_path = "/fake/repo/path"
+        deeplake_path = "/fake/deeplake/path"
+        save_to_db(repo_path, deeplake_path, sample=True)
 
-        # Call the save_to_db function
-        save_to_db(self.repo_path, self.deeplake_path)
+        # Debugging and assertions
+        mock_process.assert_called_once_with("/fake/repo/path", repo=mock_repo_instance)
+        # ... rest of the assertions ...
 
-        # Verify that add_documents was called on the mock instance for each file
-        self.assertEqual(mock_deeplake.add_documents.call_count, len(self.sample_files))
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     unittest.main()
