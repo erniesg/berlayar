@@ -1,5 +1,6 @@
 import ast
 import uuid
+import astor
 import git
 
 def extract_chunks_from_code(code_string):
@@ -19,7 +20,7 @@ def extract_chunks_from_code(code_string):
             parent_uuid = self.parent_stack[-1] if self.parent_stack else None
 
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-                chunk_code = code_string[node.lineno-1:node.end_lineno]
+                chunk_code = astor.to_source(node)
                 if isinstance(node, ast.ClassDef):
                     chunk_name = f"class_{node.name}"
                 elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -81,32 +82,35 @@ def extract_chunks_from_code(code_string):
 
     return ordered_chunks
 
-def process_python_file(file_path, repo=None):  # Add repo parameter
+def process_python_file(file_path, repo=None, object_id=None, commit_id=None):
     """
     Processes a Python file to extract its chunks (functions, classes, methods, and global code)
     and generate metadata.
 
     :param file_path: The path to the Python file.
     :param repo: The git repository object (if available).
+    :param object_id: The object ID of the file.
+    :param commit_id: The commit ID of the file.
     :return: A list of dictionaries containing information about each code chunk in the file.
     """
     with open(file_path, 'r', encoding='utf-8') as file:
         code = file.read()
 
     chunks = extract_chunks_from_code(code)
-
-    # If the repo object is provided, fetch the file's objectID
-    object_id = None
-    if repo:
-        try:
-            # Get the file's blob hash
-            object_id = repo.git.hash_object(file_path)
-        except Exception as e:
-            print(f"Error fetching objectID for {file_path}: {e}")
+    documents = []  # Initialize the documents list
 
     for chunk in chunks:
         chunk["file_path"] = file_path
         if object_id:
-            chunk["object_id"] = object_id  # Add objectID to the metadata
+            chunk["object_id"] = object_id
+        if commit_id:
+            chunk["commit_id"] = commit_id
 
-    return chunks
+        # Create a document for the chunk
+        document = {
+            "page_content": chunk["code"],
+            "metadata": chunk  # Use the entire chunk as metadata
+        }
+        documents.append(document)  # Append the document to the list
+
+    return documents  # Return the list of documents
