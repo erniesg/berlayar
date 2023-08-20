@@ -41,13 +41,18 @@ def copy_py_files(src_dir, dest_dir):
 
 def ingest_git_repo(repo_url, base_path, token=None):
     """
-    Clone a git repository, copy only .py files, and return the path to the location where they are saved.
+    Clone or pull the latest from a git repository, copy only .py files, and return the path to the location where they are saved.
     """
     repo_name, repo_path = get_repo_name_and_path(repo_url, base_path)
 
-    # Clone the repo
-    if not os.path.exists(repo_path):
-        os.makedirs(repo_path)
+    # Check if the repo already exists
+    if os.path.exists(repo_path):
+        # If the repo exists, perform a git pull to get the latest
+        repo = git.Repo(repo_path)
+        origin = repo.remotes.origin
+        origin.pull()
+    else:
+        # If the repo doesn't exist, clone it
         if token:
             git.cmd.Git().clone(repo_url, repo_path, depth=1, branch='master', config=f"http.extraheader='AUTHORIZATION: bearer {token}'")
         else:
@@ -68,7 +73,7 @@ def streamlined_connector_workflow():
     base_path = input(f"Enter the base path (or press Enter to use default: {config['DEFAULT_BASE_PATH']}): ") or config['DEFAULT_BASE_PATH']
     token = config["GITHUB_TOKEN"]
 
-    repo_path = ingest_and_copy_py_files(repo_url, base_path, token)
+    repo_path = ingest_git_repo(repo_url, base_path, token)
     process_files_and_print(repo_url, base_path, repo_path)
 
 def process_files_and_print(repo_url, base_path, repo_path):
