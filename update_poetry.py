@@ -8,6 +8,11 @@ def get_imports_from_file(filename):
         content = f.read()
 
     imports = re.findall(r'import (\w+(?:\.\w+)*?)|from (\w+(?:\.\w+)*) import', content)
+
+    # Additional check for specific pattern usage related to model_name
+    model_names = re.findall(r'model_name="([\w\-]+?)[/"]', content)
+    imports.extend([(model_name,) for model_name in model_names])
+
     return [imp[0] or imp[1] for imp in imports]
 
 def is_std_lib(package):
@@ -45,13 +50,13 @@ def get_package_version(package):
 MAPPING = {
     'load_dotenv': 'python-dotenv',
     'deeplake': 'deeplake',
-    'langchain': 'langchain'
+    'langchain': 'langchain',
+    'dotenv': 'python-dotenv'
 }
 
 def resolve_to_base_package(imp):
     if imp in MAPPING:
         return MAPPING[imp]
-
     parts = imp.split('.')
     return parts[0]
 
@@ -87,7 +92,9 @@ def main():
         if not is_std_lib(package) and not is_custom_script(package, root_dir):
             version = get_package_version(package)
             if version:
-                subprocess.run(['poetry', 'add', f"{package}@{version}"])
+                result = subprocess.run(['poetry', 'add', f"{package}@{version}"], capture_output=True, text=True)
+                print(result.stdout)
+                print(result.stderr)
 
 if __name__ == "__main__":
     main()

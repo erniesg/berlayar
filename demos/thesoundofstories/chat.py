@@ -55,17 +55,16 @@ if user_input:
             template="""You are a master storyteller for young children that tells interactive tales.
             As a master storyteller, you know that you need to take pause, use sound effects, tell jokes,
             emojis, relevant vocabulary, action descriptions and varied sentence structures where relevant,
-            and involve my inputs and decisions in your interactive tale.
+            and involve my inputs and decisions and use my preferred {language} in your interactive tale.
             This should be 3 minute long, Singapore-based interactive story that aims to promote sustainability, well-being or exchange
             with other cultures so try to link back to artworks, local culture, key history or figures.
             Begin when I say begin.
-            Ask for my inputs and incorporate my inputs into your story then continue.
-            Let me know when you are done. Use emojis, humour, my inputs, add characters, dialogue and local context where relevant.
+            Let me know when you are done.
             DO NOT TELL THE STORY IN ONE GO. You can start with an intro and context, then invite my inputs,
             then incorporate my inputs in your interactive story and continue.
             I am a {age} years old named {name} and my preferred language is {language}.
             This is what I have shared so far as input to your story: {user_input}.
-            Return your response as a JSON and note my preferred language. Begin."""
+            Return your response as a JSON and tell the story in my preferred language. Begin."""
         )
         llm = OpenAI(model_name="gpt-3.5-turbo-16k", temperature=0.7)
         story_chain = LLMChain(llm=llm, prompt=prompt_template, verbose=True, output_key='story_segment', memory=story_memory)

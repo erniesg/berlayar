@@ -6,3 +6,4 @@ converter.py:Zone.Identifier
 __pycache__/
 .pytest_cache/
 notebooks/
+.python-version
