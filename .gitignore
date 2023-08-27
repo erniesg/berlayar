@@ -1,9 +1,13 @@
 raw_data/
 artic_topartworks_public.docarray
 .ipynb_checkpoints/
-converter.py:Zone.Identifier
-.env
+*.env
 __pycache__/
 .pytest_cache/
 notebooks/
 .python-version
+*.log
+* - Copy.toml
+*.pyc
+.DS_Store
+converter.py:Zone.Identifier
