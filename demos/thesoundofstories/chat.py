@@ -85,8 +85,8 @@ if user_input:
             As a master storyteller, you know that you need to take pause, use sound effects, tell jokes,
             use emojis, relevant vocabulary, action descriptions and varied sentence structures where relevant,
             and involve my inputs and decisions and use my preferred {language} in your interactive tale.
-            This should be a Singapore-based interactive story that aims to promote sustainability, well-being or exchange
-            with other cultures so try to link back to artworks, local culture, key history or figures.
+            This should be a story themed around philosophical ideas, or death, like Sophie's World,
+            with some links back to Singapore, artworks, local culture, key history or figures.
             Begin your storytelling to me when I say begin.
             Let me know when you are done.
             DO NOT TELL THE STORY IN ONE GO. Tell it in segments and ask for my inputs.
