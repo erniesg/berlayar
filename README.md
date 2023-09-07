@@ -15,3 +15,5 @@ Hire your own team of generative agents for marketing and software development, 
 * `poetry install`
 * `poetry shell`
 * `cd` to the relevant directory then `streamlit run chat.py`
+** chat_adf: try a query like "How often is the email notification?"
+** thesoundofstories: Enter your "name", "age", "preferred language (e.g. 'english')" and then "1"; use commands like "read to me" or "read to me in mandarin" for voice generation
