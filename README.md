@@ -7,3 +7,11 @@ Hire your own team of generative agents for marketing and software development, 
 * Bertrand: go from prompt-to-publish
 * Kay: prompt-to-feature
 * Ching Shih: router and orchestrator
+
+## How to run the demos in `demos` folder
+* You need to have `pyenv` and `Python 3.10.0` installed.
+* You need to have a `.env` file in the project root directory.
+* In the `berlayar` project directory, run `pyenv local 3.10.0`
+* `poetry install`
+* `poetry shell`
+* `cd` to the relevant directory then `streamlit run chat.py`
