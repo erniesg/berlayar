@@ -1,5 +1,5 @@
 from langchain.vectorstores import DeepLake
-from berlayar.src.base_classes import AbstractVectorStore, AbstractEmbeddingStrategy
+from src.base_classes import AbstractVectorStore, AbstractEmbeddingStrategy
 import deeplake
 import os
 
@@ -23,3 +23,4 @@ class DeepLakeOps(AbstractVectorStore):
 
     def retrieve(self, query, retriever_settings=None):
         # ... similar logic as before ...
+
