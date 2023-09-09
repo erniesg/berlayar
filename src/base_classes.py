@@ -23,9 +23,18 @@ class ChunkProcessor(ABC):
     def process(self, file_path, *args, **kwargs):
         pass
 
-class AbstractEmbeddingStrategy(ABC):
+class AbstractEmbeddingModel(ABC):
     @abstractmethod
-    def embed(self, text):
+    def get_embeddings(self, *args, **kwargs):
+        pass
+
+class AbstractEmbeddingStrategy(ABC):
+
+    def __init__(self, embedding_model: AbstractEmbeddingModel):
+        self.embedding_model = embedding_model
+
+    @abstractmethod
+    def embed(self, *args, **kwargs):
         pass
 
 class AbstractVectorStore(ABC):

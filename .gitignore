@@ -12,3 +12,4 @@ notebooks/
 .DS_Store
 converter.py:Zone.Identifier
 demos/thesoundofstories/audio/
+.checkpoints/

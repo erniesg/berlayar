@@ -1,0 +1,16 @@
+# Use Python 3.10 base image
+FROM python:3.10
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Copy your project files into the container
+COPY . /app
+
+# Install project dependencies using Poetry
+RUN pip install poetry
+RUN pip install git+https://github.com/facebookresearch/ImageBind.git@main
+RUN poetry install
+
+# Set the command to run your tests or application
+CMD ["poetry", "run", "python", "-m", "unittest", "tests/unit/test_models/test_imagebind.py"]
