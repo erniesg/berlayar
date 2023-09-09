@@ -50,3 +50,21 @@ class AbstractRetrievalStrategy(ABC):
     @abstractmethod
     def search(self, query, vector_store: AbstractVectorStore, *args, **kwargs):
         pass
+
+class AbstractCloudStorage(ABC):
+
+    @abstractmethod
+    def upload(self, file_path: str, object_name: str, *args, **kwargs):
+        pass
+
+    @abstractmethod
+    def download(self, object_name: str, file_path: str, *args, **kwargs):
+        pass
+
+    @abstractmethod
+    def delete(self, object_name: str, *args, **kwargs):
+        pass
+
+    @abstractmethod
+    def list_objects(self, prefix: str = None, *args, **kwargs) -> list:
+        pass

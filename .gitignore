@@ -13,3 +13,6 @@ notebooks/
 converter.py:Zone.Identifier
 demos/thesoundofstories/audio/
 .checkpoints/
+# Ignore contents of the fixtures directory
+tests/fixtures/*
+!tests/fixtures/.gitkeep
