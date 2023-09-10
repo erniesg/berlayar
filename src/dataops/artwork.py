@@ -6,6 +6,7 @@ from src.utils.embeddings import generate_image_embeddings, generate_textual_emb
 from src.utils.cloud import AzureBlobStorage
 import deeplake
 import torch
+import pandas as pd
 
 class ArtworkDataManager:
     def __init__(self, image_directory: Path, spreadsheet_path: Optional[str] = None):
@@ -30,13 +31,18 @@ class ArtworkDataManager:
         if not self.spreadsheet_source:
             return images, None
 
-        if columns:
-            if return_as_dict:
-                metadata = {col: {col: self.spreadsheet_source.get_column(col, image_file[:-4], identifier_column)} for col in columns}
-            else:
-                metadata = {col: self.spreadsheet_source.get_column(col, image_file[:-4], identifier_column) for col in columns}
-        else:
-            metadata = self.spreadsheet_source.get_row(image_file[:-4], identifier_column, return_as_dict)
+        identifier_value = image_file.stem
+
+        if not columns:
+            # If no columns are specified, fetch all columns
+            columns = self.spreadsheet_source.df.columns
+
+        metadata = {}
+        for col in columns:
+            value = self.spreadsheet_source.get_column(col, identifier_value, identifier_column)
+            if pd.notna(value):  # only populate non-empty values
+                metadata[col] = value
+
         return images, metadata
 
     def upload_to_blob(self, file_path: str, blob_name: str):
@@ -44,9 +50,9 @@ class ArtworkDataManager:
 
     def generate_and_store_embeddings(self, model_class, data: Union[str, Dict[str, str]], modality: str, ds: deeplake.Dataset):
         if modality == 'image':
-            embeddings = generate_image_embeddings(model_class, [data])
+            embeddings = generate_image_embeddings(model_class, data)
         elif modality == 'text':
-            embeddings = generate_textual_embeddings(model_class, [data])
+            embeddings = generate_textual_embeddings(model_class, data)
         else:
             raise ValueError(f"Unsupported modality {modality}")
 
