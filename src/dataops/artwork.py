@@ -2,33 +2,41 @@ from pathlib import Path
 from typing import Optional, Union, Dict, List
 from src.sources.img import ImageDataSource
 from src.sources.spreadsheet import SpreadsheetDataSource
-from src.utils.embeddings import get_embeddings, generate_image_embeddings, generate_textual_embeddings, EmbeddingModelFactory
+from src.utils.embeddings import generate_image_embeddings, generate_textual_embeddings, EmbeddingModelFactory
 from src.utils.cloud import AzureBlobStorage
 import deeplake
 import torch
 
 class ArtworkDataManager:
-    def __init__(self, image_directory: Path, spreadsheet_path: str):
+    def __init__(self, image_directory: Path, spreadsheet_path: Optional[str] = None):
         self.image_source = ImageDataSource(image_directory)
-        self.spreadsheet_source = SpreadsheetDataSource(spreadsheet_path)
+        if spreadsheet_path:
+            self.spreadsheet_source = SpreadsheetDataSource(spreadsheet_path)
+        else:
+            self.spreadsheet_source = None
         self.blob_storage = AzureBlobStorage()
 
     def ingest_data(self):
         self.image_source.ingest()
-        self.spreadsheet_source.ingest()
+        if self.spreadsheet_source:
+            self.spreadsheet_source.ingest()
 
     def get_image_data(self):
         return self.image_source.images
 
-    def get_spreadsheet_data(self, column_name: Optional[str] = None):
-        if column_name:
-            return self.spreadsheet_source.get_column(column_name)
-        else:
-            return self.spreadsheet_source.get_metadata()
-
-    def get_artwork_data(self, column_name: Optional[str] = None):
+    def get_artwork_data(self, image_file: str, columns: Optional[List[str]] = None, identifier_column: Optional[str] = None, return_as_dict: bool = False):
         images = self.get_image_data()
-        metadata = self.get_spreadsheet_data(column_name)
+
+        if not self.spreadsheet_source:
+            return images, None
+
+        if columns:
+            if return_as_dict:
+                metadata = {col: {col: self.spreadsheet_source.get_column(col, image_file[:-4], identifier_column)} for col in columns}
+            else:
+                metadata = {col: self.spreadsheet_source.get_column(col, image_file[:-4], identifier_column) for col in columns}
+        else:
+            metadata = self.spreadsheet_source.get_row(image_file[:-4], identifier_column, return_as_dict)
         return images, metadata
 
     def upload_to_blob(self, file_path: str, blob_name: str):

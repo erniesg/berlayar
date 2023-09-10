@@ -1,13 +1,14 @@
-from src.base_classes import DataSource
 import pandas as pd
-from typing import List, Dict, Optional
+from src.base_classes import DataSource
+from typing import List, Dict, Optional, Union
+import os
 
 class SpreadsheetDataSource(DataSource):
 
     def __init__(self, path: str, id_column_mapping: List[str] = None):
         self.df = None
         self.path = path
-        self.id_column_mapping = id_column_mapping if id_column_mapping else ["Accession No.", "ID", "Filename"]
+        self.id_column_mapping = id_column_mapping if id_column_mapping else os.environ.get("DEFAULT_ID_COLUMNS", "Accession No.,ID,Filename").split(",")
 
     def ingest(self):
         """Ingest the spreadsheet data into a pandas DataFrame."""
@@ -21,15 +22,31 @@ class SpreadsheetDataSource(DataSource):
             print("Warning: Data has not been ingested yet.")
             return None
 
-    def get_column(self, column_name: str) -> Optional[List[str]]:
+    def get_column(self, column_name: str, identifier: str = None, identifier_column: Optional[str] = None) -> Union[List[str], str]:
         if self.df is None:
             raise ValueError(f"No data ingested from the spreadsheet.")
-
         if column_name not in self.df.columns:
             raise ValueError(f"Column '{column_name}' not found in the spreadsheet.")
-
-        # Remove NaN or missing values and return the list
+        if identifier:
+            if not identifier_column:
+                identifier_column = self._get_default_identifier_column()
+            value = self.df[self.df[identifier_column] == identifier][column_name].values[0]
+            return value
         return self.df[column_name].dropna().tolist()
+
+    def _get_default_identifier_column(self) -> str:
+        for col in self.id_column_mapping:
+            if col in self.df.columns:
+                return col
+        raise ValueError(f"None of the default identifier columns found in the spreadsheet: {self.id_column_mapping}")
+
+    def get_mapped_data(self, mappings: Dict[str, str]) -> Dict[str, List[str]]:
+        data = {}
+        for key, value in mappings.items():
+            column_data = self.get_column(value)
+            if column_data:
+                data[key] = column_data
+        return data
 
     def get_id_column(self) -> Optional[List[str]]:
         for name in self.id_column_mapping:
@@ -38,24 +55,6 @@ class SpreadsheetDataSource(DataSource):
             except ValueError:
                 continue
         raise ValueError(f"None of the possible names {self.id_column_mapping} found in the spreadsheet.")
-
-    def get_mapped_data(self, mappings: Dict[str, str]) -> Dict[str, List[str]]:
-        """
-        Get data mapped by column names.
-
-        Args:
-            mappings (Dict[str, str]): Dictionary mapping desired names to spreadsheet column names.
-
-        Returns:
-            Dict[str, List[str]]: Dictionary of data.
-        """
-        data = {}
-        for key, value in mappings.items():
-            column_data = self.get_column(value)
-            if column_data:
-                data[key] = column_data
-
-        return data
 
 # Usage:
 
