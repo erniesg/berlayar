@@ -2,17 +2,23 @@ import pandas as pd
 from src.base_classes import DataSource
 from typing import List, Dict, Optional, Union
 import os
+from pathlib import Path
 
 class SpreadsheetDataSource(DataSource):
 
     def __init__(self, path: str, id_column_mapping: List[str] = None):
         self.df = None
-        self.path = path
+        self.path = Path(path)  # Ensure path is a Path object
         self.id_column_mapping = id_column_mapping if id_column_mapping else os.environ.get("DEFAULT_ID_COLUMNS", "Accession No.,ID,Filename").split(",")
 
     def ingest(self):
         """Ingest the spreadsheet data into a pandas DataFrame."""
-        self.df = pd.read_excel(self.path)
+        if self.path.suffix == '.csv':
+            self.df = pd.read_csv(self.path)
+        elif self.path.suffix == '.xlsx':
+            self.df = pd.read_excel(self.path)
+        else:
+            raise ValueError(f"Unsupported file type: {self.path.suffix}")
 
     def get_metadata(self) -> Optional[Dict[str, List[str]]]:
         """Retrieve all data from the spreadsheet without specific mappings."""
