@@ -38,12 +38,20 @@ class AbstractEmbeddingStrategy(ABC):
         pass
 
 class AbstractVectorStore(ABC):
+
     @abstractmethod
-    def store(self, embeddings, *args, **kwargs):
+    def setup(self):
+        """Set up or initialize the vector store."""
         pass
 
     @abstractmethod
-    def retrieve(self, query, *args, **kwargs):
+    def store(self, data, data_type, metadatas: list = None):
+        """Store data or embeddings in the vector store."""
+        pass
+
+    @abstractmethod
+    def retrieve(self, query, retriever_settings=None):
+        """Retrieve data from the vector store based on a query."""
         pass
 
 class AbstractRetrievalStrategy(ABC):
