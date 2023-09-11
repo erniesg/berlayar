@@ -15,7 +15,7 @@ class HuggingFaceEmbedder(AbstractEmbeddingStrategy):
     def embed(self, text):
         return self.hf.embed(text)
 
-class DeepLakeOps(AbstractVectorStore):
+class DeepLake(AbstractVectorStore):
     def __init__(self, embedding_strategy: AbstractEmbeddingStrategy):
         self.deeplake_path = os.getenv("DEEPLAKE_PATH")
         self.embedding_strategy = embedding_strategy
