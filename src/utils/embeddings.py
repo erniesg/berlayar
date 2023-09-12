@@ -3,6 +3,7 @@ from src.models.imagebind_model_wrapper import ImageBindModelWrapper as IBModelW
 import torch
 from typing import List, Optional, Type, Dict, Union
 from imagebind.models.imagebind_model import ModalityType
+from pathlib import Path
 
 class EmbeddingModelFactory:
     _models = {}  # To store single instances of models
@@ -71,4 +72,20 @@ def generate_embeddings(model_class: Type[AbstractEmbeddingModel],
 
     print(f"Returning from generate_embeddings: {embeddings}")
 
+    return embeddings
+
+def get_embeddings(model: AbstractEmbeddingModel,
+                   texts: Optional[List[str]] = None,
+                   images: Optional[List[Path]] = None,
+                   audio: Optional[List[str]] = None) -> Dict[str, torch.Tensor]:
+
+    inputs = {}
+    if texts:
+        inputs[ModalityType.TEXT] = texts
+    if images:
+        inputs[ModalityType.VISION] = images
+    if audio:
+        inputs[ModalityType.AUDIO] = audio
+
+    embeddings = model.get_embeddings(**inputs)
     return embeddings

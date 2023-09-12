@@ -10,6 +10,7 @@ from datetime import datetime
 import uuid
 from tqdm import tqdm
 from src.models.imagebind_model_wrapper import ImageBindModelWrapper
+from gui.interface import launch_gui
 
 # Load environment variables from .env file
 load_dotenv(dotenv_path=Path("..") / ".env")
@@ -120,3 +121,4 @@ def process_artworks(artwork_manager: ArtworkDataManager) -> list:
 
 if __name__ == "__main__":
     main()
+    launch_gui()  # This will launch the Gradio UI
