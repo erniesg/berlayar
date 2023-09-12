@@ -79,13 +79,12 @@ def get_embeddings(model: AbstractEmbeddingModel,
                    images: Optional[List[Path]] = None,
                    audio: Optional[List[str]] = None) -> Dict[str, torch.Tensor]:
 
-    inputs = {}
+    embeddings = {}
     if texts:
-        inputs[ModalityType.TEXT] = texts
+        embeddings[ModalityType.TEXT] = model.get_embeddings(texts, ModalityType.TEXT)
     if images:
-        inputs[ModalityType.VISION] = images
+        embeddings[ModalityType.VISION] = model.get_embeddings(images, ModalityType.VISION)
     if audio:
-        inputs[ModalityType.AUDIO] = audio
+        embeddings[ModalityType.AUDIO] = model.get_embeddings(audio, ModalityType.AUDIO)
 
-    embeddings = model.get_embeddings(**inputs)
     return embeddings

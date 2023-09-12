@@ -12,10 +12,23 @@ class DeepLake(AbstractVectorStore):
         self.setup()
 
     def setup(self):
-        if deeplake.exists(self.deeplake_path):
-            print(f"Dataset at {self.deeplake_path} exists. Overwriting...")
-            ds = deeplake.dataset(path=self.deeplake_path, runtime={"db_engine": True}, overwrite=True)
-        else:
+        try:
+            # Try to load the dataset first
+            ds = deeplake.load(self.deeplake_path, read_only=True)
+
+            # If dataset is successfully loaded, ask the user for overwriting
+            user_input = input(f"Dataset at {self.deeplake_path} exists. Do you want to overwrite? (yes/no): ").strip().lower()
+
+            if user_input == 'yes':
+                print(f"Overwriting dataset at {self.deeplake_path}...")
+                ds = deeplake.dataset(path=self.deeplake_path, runtime={"db_engine": True}, overwrite=True)
+            else:
+                print(f"Using existing dataset at {self.deeplake_path}...")
+                # The dataset is already loaded, so we can just return
+                return
+
+        except deeplake.DatasetHandlerError:
+            # If dataset doesn't exist, create a new one
             print(f"Creating a new dataset at {self.deeplake_path}...")
             ds = deeplake.dataset(path=self.deeplake_path, runtime={"db_engine": True})
 
@@ -109,7 +122,11 @@ class DeepLake(AbstractVectorStore):
 
     def retrieve(self, embedding_query, limit=10):
         ds = deeplake.dataset(path=self.deeplake_path, runtime={"db_engine": True}, overwrite=False)
-        query = f'select * from (select metadata, cosine_similarity(embeddings, ARRAY{embedding_query.tolist()}) as score from "{self.deeplake_path}") order by score desc limit {limit}'
+
+        # Flatten the embedding tensor and then convert it to a list
+        flattened_embedding_list = embedding_query.flatten().tolist()
+
+        query = f'select * from (select metadata, cosine_similarity(embeddings, ARRAY{flattened_embedding_list}) as score from "{self.deeplake_path}") order by score desc limit {limit}'
         query_res = ds.query(query, runtime={"tensor_db": True})
         results = query_res.metadata.data(aslist=True)["value"]
         return results

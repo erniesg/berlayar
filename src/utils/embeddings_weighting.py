@@ -1,5 +1,6 @@
 import torch
 from typing import Dict, Optional, Tuple
+from imagebind.models.imagebind_model import ModalityType
 
 def compute_weighted_embeddings(image_embedding: torch.Tensor,
                                 metadata_embedding: Optional[torch.Tensor] = None,
@@ -35,3 +36,29 @@ def compute_weighted_embeddings(image_embedding: torch.Tensor,
         combined_embedding += (audio_embedding * audio_weight)
 
     return combined_embedding, {"image": image_weight, "metadata": meta_weight, "audio": audio_weight}
+
+def dynamic_weighted_embeddings(embeddings: Dict[str, torch.Tensor]) -> torch.Tensor:
+
+    # Define default weights
+    weights = {
+        ModalityType.VISION: 0,
+        ModalityType.TEXT: 0,
+        ModalityType.AUDIO: 0
+    }
+
+    num_present_modalities = sum([1 for key in embeddings.keys()])
+
+    # Adjust weights based on present modalities
+    if num_present_modalities == 1:
+        for key in embeddings.keys():
+            weights[key] = 1
+    else:
+        for key in embeddings.keys():
+            weights[key] = 1/num_present_modalities
+
+    # Compute weighted embeddings
+    combined_embedding = torch.zeros_like(next(iter(embeddings.values())))  # Initialize with the shape of one of the embeddings
+    for modality, embedding in embeddings.items():
+        combined_embedding += embedding * weights[modality]
+
+    return combined_embedding
