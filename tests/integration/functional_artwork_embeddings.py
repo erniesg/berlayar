@@ -4,7 +4,8 @@ from pathlib import Path
 from dotenv import load_dotenv
 from src.dataops.artwork import ArtworkDataManager
 from src.models.imagebind_model_wrapper import ImageBindModelWrapper
-from src.utils.embeddings import generate_image_embeddings, generate_textual_embeddings
+from imagebind.models.imagebind_model import ModalityType
+from src.utils.embeddings import generate_embeddings
 import torch
 
 # Load environment variables
@@ -24,8 +25,8 @@ class ArtworkEmbeddingTest(unittest.TestCase):
         self.artwork_manager.ingest_data()
 
         # Get artist_maker_value after data ingestion
-        _, metadata = self.artwork_manager.get_artwork_data(self.test_image_file, columns=["Artist/Maker"], identifier_column="Accession No.", return_as_dict=True)
-        self.artist_maker_value = metadata.get("Artist/Maker")
+        _, metadata = self.artwork_manager.get_artwork_data(self.test_image_file, columns=["Artist/Maker_y"], identifier_column="Accession No.", return_as_dict=True)
+        self.artist_maker_value = metadata.get("Artist/Maker_y")
 
     def test_generate_image_and_text_embeddings(self):
         # Print out the image file and the associated text value
@@ -33,8 +34,8 @@ class ArtworkEmbeddingTest(unittest.TestCase):
         print(f"Text Value: {self.artist_maker_value}")
 
         # Generate embeddings
-        image_embeddings = generate_image_embeddings(ImageBindModelWrapper, [self.test_image_file])
-        text_embeddings = generate_textual_embeddings(ImageBindModelWrapper, [self.artist_maker_value])
+        image_embeddings = generate_embeddings(ImageBindModelWrapper, image_paths=[self.test_image_file])[ModalityType.VISION]
+        text_embeddings = generate_embeddings(ImageBindModelWrapper, text_list=[self.artist_maker_value])[ModalityType.TEXT]
 
         # Validate embeddings
         self._print_and_validate_embeddings(image_embeddings, "Image Embeddings")
@@ -42,13 +43,13 @@ class ArtworkEmbeddingTest(unittest.TestCase):
 
     def _print_and_validate_embeddings(self, embeddings: torch.Tensor, label: str):
         print(f"\n{label}")
-        print("Type:", type(embeddings[0]))
-        print("Shape:", embeddings[0].shape)
-        print("Truncated Data:", embeddings[0][:5])  # Assuming the embeddings might be very long, just displaying the first 5 elements
+        print("Type:", type(embeddings))
+        print("Shape:", embeddings.shape)
+        print("Truncated Data:", embeddings[0][:5])  # Display the first 5 elements of the first embedding
 
-        self.assertIsInstance(embeddings[0], torch.Tensor)
-        self.assertTrue(len(embeddings[0].shape) == 2)  # Ensure it's a 2D tensor
-        self.assertTrue(embeddings[0].shape[1] > 0)     # Ensure there's a dimension for embeddings
+        self.assertIsInstance(embeddings, torch.Tensor)
+        self.assertTrue(len(embeddings.shape) == 2)  # Ensure it's a 2D tensor
+        self.assertTrue(embeddings.shape[1] > 0)     # Ensure there's a dimension for embeddings
 
 if __name__ == "__main__":
     unittest.main()

@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Optional, Union, Dict, List
 from src.sources.img import ImageDataSource
 from src.sources.spreadsheet import SpreadsheetDataSource
-from src.utils.embeddings import generate_image_embeddings, generate_textual_embeddings, EmbeddingModelFactory
+from src.utils.embeddings import generate_embeddings, EmbeddingModelFactory
 from src.models.imagebind_model_wrapper import ImageBindModelWrapper
 from src.utils.cloud import AzureBlobStorage
 import deeplake
@@ -58,18 +58,19 @@ class ArtworkDataManager:
             self.vector_store = DeepLake()
 
         if modality == 'image':
-            embeddings = generate_image_embeddings(model_class, [data])
+            embeddings_data = {'image_paths': [data]}
         elif modality == 'text':
-            embeddings = generate_textual_embeddings(model_class, data)
+            embeddings_data = {'text_list': [data]}
         else:
             raise ValueError(f"Unsupported modality {modality}")
 
+        embeddings = generate_embeddings(model_class, **embeddings_data)
+
         # Store in Deep Lake
-        for embedding in embeddings:
+        for _, embedding in embeddings.items():
             add_torch_embeddings(self.vector_store, embedding)
 
-
-    def store_artwork_in_deeplake(self, image, weighted_embedding, metadata):
+    def store_artwork_in_deeplake(self, original_image_path: Path, weighted_embedding, metadata):
         """Store the artwork (image, embedding, and full metadata) in DeepLake."""
         if not self.vector_store:
             self.vector_store = DeepLake()
@@ -77,11 +78,15 @@ class ArtworkDataManager:
         # Convert the torch tensor to numpy for storage
         embedding_np = weighted_embedding.cpu().numpy()
 
-        # Before storing in DeepLake
-        print("Shape of weighted embedding:", weighted_embedding.shape)
+        # Prepare data for appending
+        data_entry = {
+            "images": deeplake.read(str(original_image_path)),
+            "embeddings": embedding_np,
+            "metadata": metadata
+        }
 
-        # Store in DeepLake
-        self.vector_store.store(image, "image", [metadata], [embedding_np])
+        # Append data to DeepLake
+        self.vector_store.append(data_entry)
 
 # Helper function to store embeddings in Deep Lake
 def add_torch_embeddings(ds: deeplake.Dataset, embedding: torch.Tensor):
