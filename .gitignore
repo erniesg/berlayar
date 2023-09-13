@@ -16,3 +16,4 @@ demos/thesoundofstories/audio/
 # Ignore contents of the fixtures directory
 tests/fixtures/*
 !tests/fixtures/.gitkeep
+cookie.txt
