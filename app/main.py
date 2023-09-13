@@ -26,8 +26,8 @@ BASE_DIR = Path(os.getenv('DEFAULT_BASE_PATH')).resolve()
 
 def main():
     # Define paths using environment variables
-    image_directory_path = BASE_DIR / "tests/fixtures/ngs"
-    spreadsheet_path = BASE_DIR / "tests/fixtures/artworks.csv"
+    image_directory_path = BASE_DIR / "raw_data/img"
+    spreadsheet_path = BASE_DIR / "raw_data/artworks.csv"
 
     # Initialize ArtworkDataManager
     print("Initializing Artwork Data Manager...")
