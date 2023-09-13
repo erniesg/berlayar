@@ -65,13 +65,13 @@ def run_weibo_job_for_group():
     weibo_source = WeiboSource()
 
     # Fetch details for Marriott International from the ORGANIZATIONS dictionary
-    marriott_details = ORGANIZATIONS.get("InterContinental Hotels Group")
+    marriott_details = ORGANIZATIONS.get("Jin Jiang")
 
     # If the details are found (which they should be in this case), loop through the brands and ingest data for each.
     if marriott_details:
         for brand_english, brand_mandarin in zip(marriott_details["en"], marriott_details["zho"]):
             # Start and end date are hardcoded for the demonstration. Change them accordingly.
-            weibo_source.ingest("InterContinental Hotels Group", brand_english, "2023-01-01 00:00:00", "2023-01-07 23:59:59")
+            weibo_source.ingest("Jin Jiang", brand_english, "2023-01-01 00:00:00", "2023-01-07 23:59:59")
             # You'll see the command printed for each brand and, depending on the implementation of the spider, potentially more output.
 
 if __name__ == '__main__':
