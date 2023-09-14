@@ -17,3 +17,4 @@ demos/thesoundofstories/audio/
 tests/fixtures/*
 !tests/fixtures/.gitkeep
 cookie.txt
+*:Zone.Identifier
