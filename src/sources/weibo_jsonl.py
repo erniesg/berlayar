@@ -3,7 +3,7 @@
 from src.base_classes import DataSource
 import openai
 import json
-from src.models import gpt
+from src.models import gpt_translate
 
 class WeiboJsonlSource(DataSource):
     def __init__(self, file_path):
@@ -18,12 +18,12 @@ class WeiboJsonlSource(DataSource):
     def translate_content(self, content):
         # Use OpenAI SDK for translation function call
         # This is a placeholder; you'll replace this with the actual function call
-        return gpt.translate_with_openai(content)
+        return gpt_translate.translate_with_openai(content)
 
     def extract_semantics(self, content):
         # Use OpenAI SDK for semantic extraction function call
         # This is another placeholder; replace this too
-        return gpt.extract_semantics_with_openai(content)
+        return gpt_translate.extract_semantics_with_openai(content)
 
     def process(self):
         data = self.ingest()

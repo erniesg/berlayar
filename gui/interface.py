@@ -34,7 +34,7 @@ def generate_sas_url(blob_name):
     return blob_url_with_sas
 
 def local_image_path(filename):
-    return os.path.join(os.path.dirname(__file__), '..', 'tests', 'fixtures', 'ngs', filename)
+    return os.path.join(os.path.dirname(__file__), '..', 'raw_data', 'img', filename)
 
 def search(text_query=None, image_query=None, audio_query=None, limit=15):
     embeddings = get_embeddings(model,
