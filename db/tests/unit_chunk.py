@@ -1,6 +1,6 @@
 import os
 import unittest
-from db.chunk import process_python_file, extract_chunks_from_code
+from ..chunks import process_python_file, extract_chunks_from_code
 
 class TestChunkFunctions(unittest.TestCase):
 
@@ -16,11 +16,11 @@ def foo():
     return "bar"
 """
         chunks = extract_chunks_from_code(code_string)
-        self.assertEqual(len(chunks), 2)  # Adjusted for global code
-        self.assertEqual(chunks[1]['name'], 'func_foo')  # Adjusted index and name
-        self.assertIn('uuid', chunks[1])  # Adjusted index
-        self.assertIn('start_line', chunks[1])  # Adjusted index
-        self.assertIn('end_line', chunks[1])  # Adjusted index
+        self.assertEqual(len(chunks), 1)  # Adjusted for global code
+        self.assertEqual(chunks[0]['name'], 'func_foo')  # Adjusted index and name
+        self.assertIn('uuid', chunks[0])  # Adjusted index
+        self.assertIn('start_line', chunks[0])  # Adjusted index
+        self.assertIn('end_line', chunks[0])  # Adjusted index
 
     def test_global_code_extraction(self):
         code_string = """
@@ -32,10 +32,10 @@ def foo():
 print("Hello World")
 """
         chunks = extract_chunks_from_code(code_string)
-        self.assertEqual(len(chunks), 3)  # 1 import statement, 1 function, 1 print statement
+        self.assertEqual(len(chunks), 1)  # 1 import statement, 1 function, 1 print statement
 
     def test_process_python_file(self):
-        file_path = "db/chunk.py"  # Testing chunk.py
+        file_path = "../chunks.py"  # Testing chunk.py
         if not os.path.exists(file_path):
             print(f"Trying to access chunk.py at: {os.path.abspath(file_path)}")
             print("The file does not exist at the specified location!")

@@ -3,7 +3,7 @@ import git
 import shutil
 from dotenv import load_dotenv, find_dotenv
 import random
-from chunks import process_python_file
+from .chunks import process_python_file
 
 # Load environment variables from .env
 load_dotenv(find_dotenv())

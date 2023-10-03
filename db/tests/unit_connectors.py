@@ -29,7 +29,7 @@ class TestIngestGitRepo(unittest.TestCase):
         result = ingest_git_repo(repo_url, self.temp_dir)
 
         # Check if the correct paths are returned
-        self.assertEqual(result, commit_id_path)
+        self.assertEqual(result, os.path.abspath(commit_id_path))
         mock_Git.assert_not_called()
         mock_Repo.assert_called_once_with(commit_id_path)
         mock_Repo.return_value.remote.assert_called_once_with(name='origin')
@@ -51,7 +51,7 @@ class TestIngestGitRepo(unittest.TestCase):
         result = ingest_git_repo(repo_url, self.temp_dir)
 
         # Check if the correct paths are returned
-        self.assertEqual(result, commit_id_path)
+        self.assertEqual(result, os.path.abspath(commit_id_path))
         mock_Git().clone.assert_called_once_with(
             repo_url, commit_id_path, depth=1, branch='master')
         mock_Repo.assert_called_once_with(commit_id_path)

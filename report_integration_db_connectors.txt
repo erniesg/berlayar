@@ -1,0 +1,9 @@
+Name                                      Stmts   Miss  Cover
+-------------------------------------------------------------
+db/__init__.py                                0      0   100%
+db/chunks.py                                 43     37    14%
+db/connectors.py                             74     38    49%
+tests/__init__.py                             0      0   100%
+tests/test_integration_db_connectors.py      35      8    77%
+-------------------------------------------------------------
+TOTAL                                       152     83    45%
