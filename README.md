@@ -59,3 +59,8 @@ batch_text = image_embedd.embedd_text(["Your text 1","Your text 2","Your text 3"
 print(batch_text)
 
 ```
+
+### Reference
+To read more about CLIP Model and configuration you can visit link below :
+
+🤗[Hugginggface CLIP](https://huggingface.co/docs/transformers/v4.33.3/en/model_doc/clip#transformers.CLIPTextConfig)
