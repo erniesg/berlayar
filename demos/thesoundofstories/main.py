@@ -3,19 +3,22 @@ from langchain.llms import OpenAI
 from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
 from langchain.memory import ConversationBufferMemory
-from langchain.chains import ConversationChain
 import os
 from dotenv import load_dotenv
-import requests
 import aiohttp
-import asyncio
 import re
 import datetime
-from diffusers import StableDiffusionXLPipeline, StableDiffusionXLImg2ImgPipeline, AutoPipelineForText2Image
+from diffusers import AutoPipelineForText2Image
 import torch
-pipeline_text2image = AutoPipelineForText2Image.from_pretrained(
-    "stabilityai/stable-diffusion-xl-base-1.0", torch_dtype=torch.float32, variant="fp32", use_safetensors=True
-).to("cpu")
+from chainlit.input_widget import Select  # NEW: Import Select from chainlit.input_widget
+from PIL import Image
+
+def initialize_pipeline():
+    global pipeline_text2image
+    if 'pipeline_text2image' not in globals():  # Check if pipeline_text2image is already defined
+        pipeline_text2image = AutoPipelineForText2Image.from_pretrained(
+            "stabilityai/stable-diffusion-xl-base-1.0", torch_dtype=torch.float16, variant="fp16", use_safetensors=True
+        ).to("cuda")
 
 def remove_emojis(text):
     emoji_pattern = re.compile(
@@ -30,11 +33,12 @@ def remove_emojis(text):
         u"\U0001FA00-\U0001FA6F"  # Chess Symbols
         u"\U0001FA70-\U0001FAFF"  # Symbols and Pictographs Extended-A
         u"\U00002702-\U000027B0"  # Dingbats
-        u"\U000024C2-\U0001F251" 
+        u"\U000024C2-\U0001F251"
         "]+",
         flags=re.UNICODE,
     )
     return emoji_pattern.sub(r"", text)
+
 # Load environment variables and set the API key
 dotenv_path = os.path.join(os.path.dirname(__file__), '..', '..', '.env')
 load_dotenv(dotenv_path)
@@ -50,15 +54,13 @@ story_started = False
 async def generate_and_display_cover_image():
     # Get the current time and format it as a string (e.g., "2023-10-06 12:34:56")
     current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
     # Define the text prompt for the cover image
     prompt = f"The Sound of Stories set in {current_time} in {user_data['location']}"
 
 async def send_audio(content):
     cleaned_content = remove_emojis(content)  # remove emojis from content
-    print(f'{cleaned_content}')
+    print(f'cleaned content is: {cleaned_content}')
     url = "https://play.ht/api/v2/tts/stream"
-
     payload = {
         "text": cleaned_content,
         "voice": "s3://voice-cloning-zero-shot/01e001f3-3ef7-4376-9a3b-34cebdc6ea39/kamini/manifest.json",
@@ -68,14 +70,12 @@ async def send_audio(content):
         "sample_rate": 24000,
         "voice_engine": "PlayHT2.0"
     }
-
     headers = {
         "accept": "audio/mpeg",
         "content-type": "application/json",
         "AUTHORIZATION": os.getenv('PLAYHT_AUTHORIZATION'),
         "X-USER-ID": os.getenv('PLAYHT_X-USER-ID')
     }
-
     async with aiohttp.ClientSession() as session:
         async with session.post(url, json=payload, headers=headers) as response:
             print(f'Response Status: {response.status}')  # Log the status of the response
@@ -104,21 +104,19 @@ async def on_begin_storytelling(action):
             The boy was fascinated with the sound of a drum. So he said,
             "A drum, mother, I would love to have a drum to play with."
             Use the above as inspiration, tell it from the beginning and setting,
-            that is, you need to set the story up.
-            Tell this story bit by bit, in my preferred {language}
-            catered to my {age}, gender and culture.
+            split the story up and tell it bit by bit in my preferred {language}
+            catered to my age, gender and culture.
             Interact with me, my name is {name}, you may use emojis, and
             adapt the story to my response as we go along. Start from the beginning.
+            Each story segment should not exceed 50 words in length.
             Begin.
             """
     )
     llm = OpenAI(model_name="gpt-4-0613", temperature=0.3)  # Removed streaming=True
     story_chain = LLMChain(llm=llm, prompt=initial_story_template, verbose=True, output_key='story_segment')
     initial_story_segment = story_chain.run(name=user_data['name'], age=user_data['age'], language=user_data['language'])
-    
     # Save the AI's initial story segment to the conversation context
     story_memory.save_context({"human_input": "Begin"}, {"output": initial_story_segment})
-
     audio_element = await send_audio(initial_story_segment)
     await cl.Message(
         content=initial_story_segment,
@@ -129,22 +127,17 @@ async def on_begin_storytelling(action):
 @cl.on_message
 async def main(message: str):
     global story_started
-        
     # Save the user's response to the conversation context
     story_memory.save_context({"human_input": message}, {"output": ""})
-    
     # Debug: Print the story_memory contents
     print("Story Memory:", story_memory.load_memory_variables({}))
-    
     if not story_started:
         await collect_user_data(message)
     else:
         # Conversational Story Chain
         history = story_memory.load_memory_variables({}).get("history", "")
-        
         # Debug: Print the history variable
         print("History:", history)
-        
         conversational_template = PromptTemplate(
             input_variables=['history'],
             template="""The following is an ongoing interactive tale:
@@ -153,7 +146,6 @@ async def main(message: str):
         )
         llm = OpenAI(model_name="gpt-4-0613", temperature=0.3)  # Removed streaming=True
         conversational_chain = LLMChain(llm=llm, prompt=conversational_template, verbose=True, output_key='output', memory=story_memory)
-        
         response = conversational_chain.run(human_input=history)  # Not streaming, so we can just run it directly
         print(f'Type of response: {type(response)}')
         print(f'Content of response: {response}')
@@ -161,32 +153,52 @@ async def main(message: str):
             msg_content = response.replace("AI: ", "")
         else:
             msg_content = response
-        
         # Save the AI's response to the conversation context
         print(f"msg_content: {msg_content}")
         story_memory.save_context({"human_input": message}, {"output": msg_content})
-
         audio_element = await send_audio(msg_content)
-        await cl.Message(
-            content=msg_content,
-            elements=[audio_element],
-            author="Storyteller"
-        ).send()
+        if audio_element is not None:
+            await cl.Message(
+                content=msg_content,
+                elements=[audio_element],
+                author="Storyteller"
+            ).send()
+        else:
+            print("Error: audio_element is None")  # Or handle this error in some other appropriate way
 
 @cl.on_chat_start
 async def start():
     await cl.Avatar(
         name="Storyteller",
-        path="/Users/enjiaochen/code/erniesg/berlayar/raw_data/bot.png",
+        path="raw_data/bot.png",
     ).send()
-    
     await cl.Avatar(
         name="User",
-        path="/Users/enjiaochen/code/erniesg/berlayar/raw_data/avatar.png",
+        path="raw_data/avatar.png",
     ).send()
-    
+    settings = await cl.ChatSettings(  # NEW: Settings for image generation preference
+        [
+            Select(
+                id="ImageGeneration",
+                label="Enable Image Generation",
+                values=["On", "Off"],
+                initial_index=1,
+            )
+        ]
+    ).send()
+    global image_generation_enabled  # Access the global variable
+    image_generation_enabled = settings["ImageGeneration"] == "On"  # Set the global variable based on user preference
+    print(f"Image generation enabled: {image_generation_enabled}")
+
+    if image_generation_enabled:
+        initialize_pipeline()  # Initialize pipeline_text2image only when image generation is enabled
     await cl.Message(content="Hello! What's your name?", author="Storyteller").send()
 
+@cl.on_settings_update
+async def setup_agent(settings):
+    print("on_settings_update", settings)
+    global image_generation_enabled
+    image_generation_enabled = settings["ImageGeneration"] == "On"
 async def collect_user_data(message: str):
     if 'name' not in user_data:
         user_data['name'] = message
@@ -196,30 +208,62 @@ async def collect_user_data(message: str):
         await cl.Message(content="What's your preferred language?", author="Storyteller").send()
     elif 'language' not in user_data:
         user_data['language'] = message
-        await cl.Message(content="Where are you located?", author="Storyteller").send()
-    elif 'location' not in user_data:
+        if image_generation_enabled:  # NEW: Check if image generation is enabled
+            initialize_pipeline()  # Initialize pipeline_text2image when image generation is enabled
+            await cl.Message(content="Where are you located?", author="Storyteller").send()
+        else:
+            await display_begin_button()  # NEW: Skip location and image generation if not enabled
+    elif 'location' not in user_data and image_generation_enabled:  # NEW: Check if image generation is enabled
         user_data['location'] = message
         # Instead of starting the story directly, generate and display the cover image
         await generate_and_display_cover_image()
 
 async def generate_and_display_cover_image():
-    # Get the current time and format it as a string (e.g., "2023-10-06 12:34:56")
-    current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        if not image_generation_enabled:  # Return early if image generation is not enabled
+            return
 
-    # Define the text prompt for the cover image
-    prompt = f"The Sound of Stories set in {current_time} in {user_data['location']}"
+        # Get the current time and format it as a string (e.g., "2023-10-06 12:34:56")
+        current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # Define the text prompt for the cover image
+        prompt = f"The Sound of Stories set in {current_time} in {user_data['location']}, children illustration style, anime"
 
-    # Generate the cover image using the SDXL model
-    result = pipeline_text2image(prompt=prompt)
-    image = result.images[0]
+        print("Generating image with prompt:", prompt)  # Debugging
+        # Generate the cover image using the SDXL model
+        async_pipeline_text2image = cl.make_async(pipeline_text2image)
+        result = await async_pipeline_text2image(prompt=prompt)
+        print(f"Image generation result type: {type(result)}")
+        print(f"Number of images in result: {len(result.images)}")
+        image = result.images[0]
+        print(f"Generated image dimensions: {image.size}")
 
-    # Save the generated cover image to a file
-    image.save("cover_image.png")
+        # Save the generated cover image to a file
+        image_path = "cover_image.png"
+        image.save(image_path)
+        print(f"Image saved to {image_path}")  # Debugging
+        absolute_path = os.path.abspath(image_path)
+        print(f"Absolute path of saved image: {absolute_path}")
+        try:
+            with Image.open(absolute_path) as img:
+                print(f"Generated image opened successfully! Dimensions: {img.size}")
+        except Exception as e:
+            print(f"Failed to open generated image: {e}")
+        image_size = os.path.getsize(absolute_path)
+        print(f"Generated image size: {image_size} bytes")
 
-    # Display the cover image in your application
-    cover_image_display = cl.Image(name="Cover Image", display="inline", path="cover_image.png")
-    await cl.Message(content="Here is the cover image for your story:", elements=[cover_image_display]).send()
-    
-    # Show the 'Begin' button
+        # Display the cover image in your application
+        with open(absolute_path, "rb") as f:
+            image_bytes = f.read()
+        cover_image_display = cl.Image(name="Cover Image", display="inline", content=image_bytes)
+
+        print("Sending image to chat...")  # Debugging
+        await cl.Message(content="Here is the cover image for your story:", elements=[cover_image_display]).send()
+        print("Image sent!")  # Debugging
+        await display_begin_button()
+
+    except Exception as e:
+        print("Error in generate_and_display_cover_image:", str(e))  # Print any errors that occur
+
+async def display_begin_button():  # NEW: Function to display the 'Begin' button
     begin_action = cl.Action(name="begin_button", value="Begin", label="Begin")
     await cl.Message(content="Click 'Begin' to start the story.", actions=[begin_action], author="Storyteller").send()
