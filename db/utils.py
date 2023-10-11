@@ -2,7 +2,7 @@ import os
 import random
 from langchain.vectorstores import DeepLake
 from langchain.embeddings import HuggingFaceEmbeddings
-from chunks import process_python_file
+from db.chunks import process_python_file
 from dotenv import load_dotenv
 
 dotenv_path = os.path.join(os.path.dirname(__file__), '..', '.env')
