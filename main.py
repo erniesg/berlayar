@@ -1,8 +1,8 @@
 import os
 from dotenv import load_dotenv
-from connectors import ingest_git_repo
-from chunks import process_python_file, extract_chunks_from_code
-from utils import save_to_db, get_last_processed_commit, save_last_processed_commit
+from db.connectors import ingest_git_repo
+from db.chunks import process_python_file, extract_chunks_from_code
+from db.utils import save_to_db, get_last_processed_commit, save_last_processed_commit
 import git
 
 def main():
