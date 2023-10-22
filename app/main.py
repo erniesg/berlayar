@@ -11,6 +11,7 @@ import uuid
 from tqdm import tqdm
 from src.models.imagebind_model_wrapper import ImageBindModelWrapper
 from gui.interface import launch_gui
+import csv
 
 # Load environment variables from .env file
 load_dotenv(dotenv_path=Path("..") / ".env")
@@ -70,12 +71,23 @@ def main():
 def process_artworks(artwork_manager: ArtworkDataManager) -> list:
     artworks_metadata = []
     columns = ["ap_Title", "Artist/Maker_y"]
+    missing_metadata = []
 
     for idx, image_file in enumerate(tqdm(artwork_manager.image_source.images, desc="Processing artworks")):
         original_image_file = artwork_manager.image_source.original_images[idx]
         image, metadata_dict = artwork_manager.get_artwork_data(original_image_file, columns=columns)
 
         print(f"\nProcessing: {image_file.name}")
+
+        # Check if required metadata is missing
+        if not all(metadata_dict.get(col) for col in columns):
+            print(f"Missing metadata for {image_file.name}")
+            missing_metadata.append({
+                "filename": image_file.name,
+                "path": str(image_file)
+            })
+            continue
+
         for col in columns:
             value = metadata_dict.get(col, "N/A")
             print(f"Column: {col}, Value: {value}")
@@ -116,6 +128,16 @@ def process_artworks(artwork_manager: ArtworkDataManager) -> list:
         artwork_manager.store_artwork_in_deeplake(original_image_file, weighted_embedding, item_metadata)
 
         artworks_metadata.append(item_metadata)
+
+    # After processing all artworks, save the list of images with missing metadata to a CSV file
+    if missing_metadata:
+        with open('missing_metadata.csv', 'w', newline='') as csvfile:
+            fieldnames = ['filename', 'path']
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+            for row in missing_metadata:
+                writer.writerow(row)
+        print("Images with missing metadata have been saved to missing_metadata.csv")
 
     return artworks_metadata
 
