@@ -27,43 +27,35 @@ class DeepLake(AbstractVectorStore):
             return
 
         try:
-            # Try to load the dataset first
-            self.ds = deeplake.load(self.deeplake_path, read_only=True)
-
-            # If dataset is successfully loaded, ask the user for overwriting
-            user_input = input(f"Dataset at {self.deeplake_path} exists. Do you want to overwrite? (yes/no): ").strip().lower()
-
-            if user_input == 'yes':
-                print(f"Overwriting dataset at {self.deeplake_path}...")
-                self.ds = deeplake.dataset(path=self.deeplake_path, runtime={"db_engine": True}, overwrite=True)
-            else:
-                print(f"Using existing dataset at {self.deeplake_path}...")
-                return
-
+            print(f"Trying to load dataset at {self.deeplake_path}...")
+            self.ds = deeplake.load(self.deeplake_path)
+            print(f"Using existing dataset at {self.deeplake_path}...")
         except Exception as e:
-            # If dataset doesn't exist or any other error occurs, create a new one
-            print(f"Creating a new dataset at {self.deeplake_path}...")
+            print(f"Dataset at {self.deeplake_path} does not exist. Creating a new one...")
             self.ds = deeplake.dataset(path=self.deeplake_path, runtime={"db_engine": True})
 
         with self.ds:
-            self.ds.create_tensor(
-                "metadata",
-                htype="json",
-                create_id_tensor=False,
-                create_sample_info_tensor=False,
-                create_shape_tensor=False,
-                chunk_compression="lz4"
-            )
-            self.ds.create_tensor("images", htype="image", sample_compression="jpg")
-            self.ds.create_tensor(
-                "embeddings",
-                htype="embedding",
-                dtype=np.float32,
-                create_id_tensor=False,
-                create_sample_info_tensor=False,
-                max_chunk_size=64 * 1024 * 1024,
-                create_shape_tensor=True
-            )
+            if "metadata" not in self.ds.tensors:
+                self.ds.create_tensor(
+                    "metadata",
+                    htype="json",
+                    create_id_tensor=False,
+                    create_sample_info_tensor=False,
+                    create_shape_tensor=False,
+                    chunk_compression="lz4"
+                )
+            if "images" not in self.ds.tensors:
+                self.ds.create_tensor("images", htype="image", sample_compression="jpg")
+            if "embeddings" not in self.ds.tensors:
+                self.ds.create_tensor(
+                    "embeddings",
+                    htype="embedding",
+                    dtype=np.float32,
+                    create_id_tensor=False,
+                    create_sample_info_tensor=False,
+                    max_chunk_size=64 * 1024 * 1024,
+                    create_shape_tensor=True
+                )
         print("Dataset setup complete.")
         assert "metadata" in self.ds.tensors, "Failed to create 'metadata' tensor!"
         assert "images" in self.ds.tensors, "Failed to create 'images' tensor!"
