@@ -12,12 +12,11 @@ import os
 from db.ops.deeplake import DeepLake
 
 class ArtworkDataManager:
-
     def __init__(self, image_directory: Path, spreadsheet_path: Optional[str] = None, embedding_model: Optional[ImageBindModelWrapper] = None):
         self.image_source = ImageDataSource(image_directory)
         self.spreadsheet_source = SpreadsheetDataSource(spreadsheet_path) if spreadsheet_path else None
         self.embedding_model = embedding_model if embedding_model else EmbeddingModelFactory.get_model(ImageBindModelWrapper)
-        self.vector_store = None
+        self.vector_store = DeepLake()  # Initialize it here
         self.blob_storage = None
 
     def ingest_data(self):
@@ -54,9 +53,6 @@ class ArtworkDataManager:
         self.blob_storage.upload(file_path, blob_name)
 
     def generate_and_store_embeddings(self, model_class, data: Union[str, Dict[str, str]], modality: str):
-        if not self.vector_store:
-            self.vector_store = DeepLake()
-
         if modality == 'image':
             embeddings_data = {'image_paths': [data]}
         elif modality == 'text':
@@ -72,9 +68,6 @@ class ArtworkDataManager:
 
     def store_artwork_in_deeplake(self, original_image_path: Path, weighted_embedding, metadata):
         """Store the artwork (image, embedding, and full metadata) in DeepLake."""
-        if not self.vector_store:
-            self.vector_store = DeepLake()
-
         # Convert the torch tensor to numpy for storage
         embedding_np = weighted_embedding.cpu().numpy()
 
@@ -88,8 +81,8 @@ class ArtworkDataManager:
         # Append data to DeepLake
         self.vector_store.append(data_entry)
 
-# Helper function to store embeddings in Deep Lake
-def add_torch_embeddings(ds: deeplake.Dataset, embedding: torch.Tensor):
-    # Convert torch tensor to numpy for storage in Deep Lake
-    embedding_np = embedding.cpu().numpy()
-    ds.append({"embeddings": embedding_np})
+    # Helper function to store embeddings in Deep Lake
+    def add_torch_embeddings(ds: deeplake.Dataset, embedding: torch.Tensor):
+        # Convert torch tensor to numpy for storage in Deep Lake
+        embedding_np = embedding.cpu().numpy()
+        ds.append({"embeddings": embedding_np})

@@ -12,6 +12,7 @@ from tqdm import tqdm
 from src.models.imagebind_model_wrapper import ImageBindModelWrapper
 from gui.interface import launch_gui
 import csv
+import time
 
 # Load environment variables from .env file
 load_dotenv(dotenv_path=Path("..") / ".env")
@@ -26,6 +27,8 @@ load_dotenv(dotenv_path=Path("..") / ".env")
 BASE_DIR = Path(os.getenv('DEFAULT_BASE_PATH')).resolve()
 
 def main():
+    start_time = time.time()
+
     # Define paths using environment variables
     image_directory_path = BASE_DIR / "raw_data/img"
     spreadsheet_path = BASE_DIR / "raw_data/artworks.csv"
@@ -47,26 +50,29 @@ def main():
     print("Saving metadata locally...")
     save_metadata_locally(artworks_metadata, local_save_path)
 
-    # Upload everything to Azure Blob Storage
-    blob_storage = AzureBlobStorage()
+    # # Upload everything to Azure Blob Storage
+    # blob_storage = AzureBlobStorage()
 
-    print("Uploading data to Azure Blob Storage...")
+    # print("Uploading data to Azure Blob Storage...")
 
-    # Uploading original images
-    for item in image_directory_path.iterdir():
-        if item.is_file():  # Ensure we're dealing with files
-            blob_url = blob_storage.upload(item, item.name)
-            print(f"Uploaded {item.name} to {blob_url}")
+    # # Uploading original images
+    # for item in image_directory_path.iterdir():
+    #     if item.is_file():  # Ensure we're dealing with files
+    #         blob_url = blob_storage.upload(item, item.name)
+    #         print(f"Uploaded {item.name} to {blob_url}")
 
-    # Uploading processed images
-    processed_image_directory = image_directory_path / "processed"
-    for item in processed_image_directory.iterdir():
-        if item.is_file():  # Ensure we're dealing with files
-            blob_url = blob_storage.upload(item, f"processed/{item.name}")
-            print(f"Uploaded processed/{item.name} to {blob_url}")
+    # # Uploading processed images
+    # processed_image_directory = image_directory_path / "processed"
+    # for item in processed_image_directory.iterdir():
+    #     if item.is_file():  # Ensure we're dealing with files
+    #         blob_url = blob_storage.upload(item, f"processed/{item.name}")
+    #         print(f"Uploaded processed/{item.name} to {blob_url}")
 
-    # Upload metadata to Azure
-    save_metadata_to_azure(artworks_metadata, f"generated_metadata.csv")
+    # # Upload metadata to Azure
+    # save_metadata_to_azure(artworks_metadata, f"generated_metadata.csv")
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    print(f"\nThe entire operation took {elapsed_time:.2f} seconds.")
 
 def process_artworks(artwork_manager: ArtworkDataManager) -> list:
     artworks_metadata = []
@@ -144,3 +150,5 @@ def process_artworks(artwork_manager: ArtworkDataManager) -> list:
 if __name__ == "__main__":
     main()
     launch_gui()  # This will launch the Gradio UI
+
+# issue: code asks about replacement manually everytime an image is added

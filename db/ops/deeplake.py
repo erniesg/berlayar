@@ -6,34 +6,47 @@ from src.base_classes import AbstractVectorStore, AbstractEmbeddingStrategy
 from src.utils.embeddings import generate_embeddings
 
 class DeepLake(AbstractVectorStore):
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super(DeepLake, cls).__new__(cls)
+        return cls._instance
+
     def __init__(self, embedding_strategy: Optional[AbstractEmbeddingStrategy] = None):
-        self.deeplake_path = os.getenv("DEEPLAKE_PATH")
-        self.embedding_strategy = embedding_strategy
-        self.setup()
+        if not hasattr(self, 'is_initialized') or not self.is_initialized:
+            self.deeplake_path = os.getenv("DEEPLAKE_PATH")
+            self.embedding_strategy = embedding_strategy
+            self.ds = None  # To store the dataset instance
+            self.setup()
+            self.is_initialized = True
 
     def setup(self):
+        if self.ds is not None:
+            print("Dataset is already set up.")
+            return
+
         try:
             # Try to load the dataset first
-            ds = deeplake.load(self.deeplake_path, read_only=True)
+            self.ds = deeplake.load(self.deeplake_path, read_only=True)
 
             # If dataset is successfully loaded, ask the user for overwriting
             user_input = input(f"Dataset at {self.deeplake_path} exists. Do you want to overwrite? (yes/no): ").strip().lower()
 
             if user_input == 'yes':
                 print(f"Overwriting dataset at {self.deeplake_path}...")
-                ds = deeplake.dataset(path=self.deeplake_path, runtime={"db_engine": True}, overwrite=True)
+                self.ds = deeplake.dataset(path=self.deeplake_path, runtime={"db_engine": True}, overwrite=True)
             else:
                 print(f"Using existing dataset at {self.deeplake_path}...")
-                # The dataset is already loaded, so we can just return
                 return
 
-        except deeplake.DatasetHandlerError:
-            # If dataset doesn't exist, create a new one
+        except Exception as e:
+            # If dataset doesn't exist or any other error occurs, create a new one
             print(f"Creating a new dataset at {self.deeplake_path}...")
-            ds = deeplake.dataset(path=self.deeplake_path, runtime={"db_engine": True})
+            self.ds = deeplake.dataset(path=self.deeplake_path, runtime={"db_engine": True})
 
-        with ds:
-            ds.create_tensor(
+        with self.ds:
+            self.ds.create_tensor(
                 "metadata",
                 htype="json",
                 create_id_tensor=False,
@@ -41,8 +54,8 @@ class DeepLake(AbstractVectorStore):
                 create_shape_tensor=False,
                 chunk_compression="lz4"
             )
-            ds.create_tensor("images", htype="image", sample_compression="jpg")
-            ds.create_tensor(
+            self.ds.create_tensor("images", htype="image", sample_compression="jpg")
+            self.ds.create_tensor(
                 "embeddings",
                 htype="embedding",
                 dtype=np.float32,
@@ -52,12 +65,13 @@ class DeepLake(AbstractVectorStore):
                 create_shape_tensor=True
             )
         print("Dataset setup complete.")
-        assert "metadata" in ds.tensors, "Failed to create 'metadata' tensor!"
-        assert "images" in ds.tensors, "Failed to create 'images' tensor!"
-        assert "embeddings" in ds.tensors, "Failed to create 'embeddings' tensor!"
+        assert "metadata" in self.ds.tensors, "Failed to create 'metadata' tensor!"
+        assert "images" in self.ds.tensors, "Failed to create 'images' tensor!"
+        assert "embeddings" in self.ds.tensors, "Failed to create 'embeddings' tensor!"
 
     def store(self, data, data_type, metadatas: Optional[List[dict]] = None, embeddings: Optional[List[np.array]] = None):
-        ds = deeplake.dataset(path=self.deeplake_path, runtime={"db_engine": True}, overwrite=False)
+        if self.ds is None:
+            raise ValueError("Dataset is not initialized. Please call setup method first.")
 
         # Unified embeddings generation
         if embeddings is None:
@@ -71,47 +85,28 @@ class DeepLake(AbstractVectorStore):
             embeddings = generate_embeddings(self.embedding_strategy, **embeddings_data) if self.embedding_strategy else data
 
         if isinstance(data, list):  # Check if data is a list
+            entries = []
             for i, embedding in enumerate(embeddings):
-                # Check the shape and dtype of the embedding
-                assert embedding.dtype == np.float32, f"Expected dtype float32, but got {embedding.dtype}"
-                assert len(embedding.shape) in [1, 2], f"Unexpected embedding shape: {embedding.shape}"
-
                 image_data = deeplake.read(str(data[i]))
+                metadata = metadatas[i] if metadatas and i < len(metadatas) else {}
+                entry = {"embeddings": embedding, "metadata": metadata, "images": image_data}
+                entries.append(entry)
+            self.ds.append(entries)
 
-                entry = {
-                    "embeddings": embedding,
-                    "metadata": metadatas[i],
-                    "images": image_data
-                }
-                if "embeddings" not in ds.tensors or "metadata" not in ds.tensors or "images" not in ds.tensors:
-                    raise ValueError("Required tensors are not present in the dataset!")
-                ds.append(entry)
-
-        else:  # If data is a single PosixPath object
-            # Check the shape and dtype of the first embedding
-            assert embeddings[0].dtype == np.float32, f"Expected dtype float32, but got {embeddings[0].dtype}"
-            assert len(embeddings[0].shape) in [1, 2], f"Unexpected embedding shape: {embeddings[0].shape}"
-
+        else:
             image_data = deeplake.read(data)
-
-            entry = {
-                "embeddings": embeddings[0],
-                "metadata": metadatas[0],
-                "images": image_data
-            }
-            if "embeddings" not in ds.tensors or "metadata" not in ds.tensors or "images" not in ds.tensors:
-                raise ValueError("Required tensors are not present in the dataset!")
-            ds.append(entry)
+            metadata = metadatas[0] if metadatas else {}
+            entry = {"embeddings": embeddings[0], "metadata": metadata, "images": image_data}
+            self.ds.append(entry)
 
     def delete_dataset(self):
         ds = deeplake.dataset(path=self.deeplake_path, runtime={"db_engine": True}, overwrite=False)
         try:
-            ds.delete(large_ok=True)  # You can change this to False if you want to ensure datasets above 1GB aren't accidentally deleted
+            ds.delete(large_ok=True)
             print("Deleted the entire dataset from DeepLake.")
         except Exception as e:
             print(f"Error deleting dataset from DeepLake: {e}")
 
-    # Optional: method to delete a specific branch (assuming you have branching functionality)
     def delete_branch(self, branch_name):
         ds = deeplake.dataset(path=self.deeplake_path, runtime={"db_engine": True}, overwrite=False)
         try:
@@ -122,15 +117,12 @@ class DeepLake(AbstractVectorStore):
 
     def retrieve(self, embedding_query, limit=10):
         ds = deeplake.dataset(path=self.deeplake_path, runtime={"db_engine": True}, overwrite=False)
-
-        # Flatten the embedding tensor and then convert it to a list
         flattened_embedding_list = embedding_query.flatten().tolist()
-
         query = f'select * from (select metadata, cosine_similarity(embeddings, ARRAY{flattened_embedding_list}) as score from "{self.deeplake_path}") order by score desc limit {limit}'
         query_res = ds.query(query, runtime={"tensor_db": True})
         results = query_res.metadata.data(aslist=True)["value"]
         return results
 
     def append(self, data):
-        ds = deeplake.dataset(path=self.deeplake_path, runtime={"db_engine": True}, overwrite=False)
-        ds.append(data)
+        with deeplake.dataset(path=self.deeplake_path, runtime={"db_engine": True}, overwrite=False) as ds:
+            ds.append(data)
