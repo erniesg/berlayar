@@ -28,6 +28,8 @@ gradio = "3.23.0"
 gensim = "4.2.0"
 requests = "2.31.0"
 pyldavis = "3.4.1"
+jupyter = "^1.0.0"
+ipykernel = "^6.29.0"
 
 
 [build-system]
