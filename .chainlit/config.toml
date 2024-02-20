@@ -17,6 +17,10 @@ cache = false
 [features]
 # Show the prompt playground
 prompt_playground = true
+multi_modal = true
+# Allows user to use speech to text
+[features.speech_to_text]
+    enabled = true
 
 [UI]
 # Name of the app and chatbot.
