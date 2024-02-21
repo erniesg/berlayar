@@ -15,7 +15,9 @@ from langchain.chains import ConversationalRetrievalChain
 import smtplib
 from email.message import EmailMessage
 from dotenv import load_dotenv
-from openai import ChatCompletion
+from openai import OpenAI
+
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 import openai
 from langchain.callbacks import get_openai_callback
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
@@ -23,7 +25,6 @@ from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 # Load the environment variables and set the API key
 dotenv_path = os.path.join(os.path.dirname(__file__), '..', '..', '.env')
 load_dotenv(dotenv_path)
-openai.api_key = os.getenv("OPENAI_API_KEY")
 
 def send_email(chat_log, to_address):
     """Send an email containing the chat log."""
@@ -134,14 +135,12 @@ class Embedder:
                     }
                 ]
                 messages = [{"role": "user", "content": query}] + [{"role": role, "content": content} for role, content in chat_history]
-                response = ChatCompletion.create(
-                    model="gpt-3.5-turbo",
-                    messages=messages,
-                    functions=functions,
-                    function_call="auto",
-                    streaming=True,
-                    callbacks=[StreamingStdOutCallbackHandler()]
-                )
+                response = client.chat.completions.create(model="gpt-3.5-turbo",
+                messages=messages,
+                functions=functions,
+                function_call="auto",
+                streaming=True,
+                callbacks=[StreamingStdOutCallbackHandler()])
                 print(f"GPT-3.5-turbo response: {response}")
 
             # Print token and cost info after processing both API calls
