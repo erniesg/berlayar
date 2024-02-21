@@ -20,8 +20,44 @@ from dotenv import load_dotenv
 from berlayar.config.config_loader import EnvConfigLoader
 from berlayar.config.google_secrets import GoogleSecretsConfigLoader
 # Load .env if present for local development. This line can stay at the top.
+# Load .env if present for local development. This line can stay at the top.
 load_dotenv()
 
+# Check if Google Application Credentials are already set
+google_credentials_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+if google_credentials_path:
+    print("Google Application Credentials already set to:", google_credentials_path)
+else:
+    print("Google Application Credentials not found. Attempting to fetch...")
+
+    # Attempt to fetch Google Application Credentials from environment variables or Google Secrets
+    try:
+        # Check if the project ID is available in environment variables
+        project_id = os.getenv('GOOGLE_PROJECT_ID')
+        if project_id:
+            # Initialize the GoogleSecretsConfigLoader with the project ID
+            config_loader = GoogleSecretsConfigLoader(project_id)
+            print("Using configuration from Google Secrets")
+
+            # Attempt to fetch Google Application Credentials from Google Secrets
+            google_credentials = config_loader.get('GOOGLE_APPLICATION_CREDENTIALS')
+            if google_credentials:
+                print("Successfully fetched Google Application Credentials from Google Secrets.")
+                # Set the environment variable GOOGLE_APPLICATION_CREDENTIALS with the fetched credentials
+                os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = google_credentials
+            else:
+                print("Google Application Credentials not found in Google Secrets.")
+        else:
+            print("GOOGLE_PROJECT_ID not found in environment variables.")
+    except Exception as e:
+        print("Failed to load configuration from Google Secrets:", e)
+
+    # Check again if Google Application Credentials are now set
+    google_credentials_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+    if google_credentials_path:
+        print("Google Application Credentials set to:", google_credentials_path)
+    else:
+        print("Google Application Credentials could not be fetched.")
 # Determine and print the configuration source
 config_loader = None
 
@@ -183,7 +219,7 @@ def initialize_pipeline():
             pipeline_text2image.enable_attention_slicing()
 
 # Ensure initialize_pipeline is called before generate_and_display_cover_image
-initialize_pipeline()
+# initialize_pipeline()
 
 def remove_emojis(text):
     print(f"Before emoji removal: {text}")
@@ -268,12 +304,13 @@ async def on_begin_storytelling(action):
         Every story segment you tell is approximately 42-50 words long when read aloud.
         The story is titled "The Boy and the Drum" and typically starts as follows:
         {intro}
-        {encounter_0}
         Tell the story from the beginning and adapt the context, location, length of story, language choice
         and where they stay to the user's age of {age} years old,
         location {location} and preferred language {language} and end by asking the user what the boy would like from the market to
         invite their inputs in order to continue the interactive story. The story should be appropriate for a {age} years old.
         Use UK English if language is English. You may use emojis to liven up the narrative. Keep your response to 42-50 words as much as possible.
+        Just for your reference, the next part of the segment is as below so you need to keep it in mind for the intro:
+        {encounter_0}
         Begin.
         """
     )
@@ -337,15 +374,15 @@ async def main(message: cl.Message):
             Given the ongoing story for "The Boy and the Drum":
             {{history}}
             And the next segment to incorporate:
-            {next_segment_text}
-            Generate a continuation in {user_data['language']} that transitions smoothly into the next segment of the story.
+            {{next_segment}}
+            Generate a continuation in {{language}} that transitions smoothly into the next segment of the story.
             Note that after the AI had already generated the intro, so you only need to continue.
-            Adapt the context, location, length of story, language choice and items to the user's age of {user_data['age']} years old
-            (though user need not feature in the story), location {user_data['location']} and preferred language {user_data['language']}
+            Adapt the context, location, length of story, language choice and items to the user's age of {{age}} years old
+            (though user need not feature in the story), location {{location}} and preferred language {{language}}
             and invite their inputs in order to continue the interactive story where suitable.
-            The user's name is {user_data['name']} and the vocabulary, language used
-            and length of your response should be appropriate for a {user_data['age']} years old.
-            The boy is a fictional character separate to {user_data['name']} and {user_data['name']} need not be part of the story.
+            The user's name is {{name}} and the vocabulary, language used
+            and length of your response should be appropriate for a {{age}} years old.
+            The boy is a fictional character separate to {{name}} and {{name}} need not be part of the story.
             Use UK English if language is English. You may use emojis to liven up the narrative.
             """
         )

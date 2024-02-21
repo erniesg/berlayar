@@ -17,6 +17,10 @@ python-dotenv = "^1.0.0"
 sentence-transformers = "^2.2.2"
 protobuf = "^3.20.0"  # Updated to match pip freeze
 typing-extensions = "^4.7.1"
+chainlit = "1.0.0"
+diffusers = "0.26.3"
+google-cloud-storage = "2.14.0"
+google-cloud-secret-manager = "^2.18.1"
 
 [tool.poetry.dev-dependencies]
 

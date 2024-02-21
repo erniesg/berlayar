@@ -2,11 +2,11 @@ from dotenv import load_dotenv
 from google.cloud import secretmanager
 import os
 
-# Set the working directory to the directory where the .env file is located
-os.chdir("/Users/erniesg/code/erniesg/berlayar")
+# Set the path to the directory where the .env file is located
+ENV_FILE_PATH = os.path.join(os.path.dirname(__file__), '..', '..', '..', '.env')
 
 # Load .env file to retrieve the project ID
-load_dotenv()
+load_dotenv(dotenv_path=ENV_FILE_PATH)
 
 # Retrieve the project ID from the environment variables
 project_id = os.getenv('GOOGLE_PROJECT_ID')
