@@ -184,7 +184,7 @@ async def on_begin_storytelling(action):
     encounter_0_text = story_data["checkpoints"][1]["text"]
     # Prepare the initial story segment with user data
     initial_story_template = PromptTemplate(
-        input_variables=['name', 'age', 'language', 'location', 'intro', 'encounter_0'],
+        input_variables=['name', 'age', 'language', 'location', 'intro'],
         template="""
         You are a master storyteller for children aged {age} years old, telling interactive tales in {language},
         tailored to the user {name}'s age and culture, set in {location}. The boy is a fictional character separate to {name}.
