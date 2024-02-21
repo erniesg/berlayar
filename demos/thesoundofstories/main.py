@@ -15,132 +15,20 @@ from datetime import datetime
 from PIL import Image
 from google.cloud import storage
 from berlayar.utils.common import get_config_loader
+from berlayar.utils.path import construct_path_from_root
 import os
 from dotenv import load_dotenv
 from berlayar.config.config_loader import EnvConfigLoader
 from berlayar.config.google_secrets import GoogleSecretsConfigLoader
-# Load .env if present for local development. This line can stay at the top.
-# Load .env if present for local development. This line can stay at the top.
-load_dotenv()
+from berlayar.utils.load_keys import load_environment_variables  # Import load_environment_variables
+import openai
 
-# Check if Google Application Credentials are already set
-google_credentials_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
-if google_credentials_path:
-    print("Google Application Credentials already set to:", google_credentials_path)
-else:
-    print("Google Application Credentials not found. Attempting to fetch...")
-
-    # Attempt to fetch Google Application Credentials from environment variables or Google Secrets
-    try:
-        # Check if the project ID is available in environment variables
-        project_id = os.getenv('GOOGLE_PROJECT_ID')
-        if project_id:
-            # Initialize the GoogleSecretsConfigLoader with the project ID
-            config_loader = GoogleSecretsConfigLoader(project_id)
-            print("Using configuration from Google Secrets")
-
-            # Attempt to fetch Google Application Credentials from Google Secrets
-            google_credentials = config_loader.get('GOOGLE_APPLICATION_CREDENTIALS')
-            if google_credentials:
-                print("Successfully fetched Google Application Credentials from Google Secrets.")
-                # Set the environment variable GOOGLE_APPLICATION_CREDENTIALS with the fetched credentials
-                os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = google_credentials
-            else:
-                print("Google Application Credentials not found in Google Secrets.")
-        else:
-            print("GOOGLE_PROJECT_ID not found in environment variables.")
-    except Exception as e:
-        print("Failed to load configuration from Google Secrets:", e)
-
-    # Check again if Google Application Credentials are now set
-    google_credentials_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
-    if google_credentials_path:
-        print("Google Application Credentials set to:", google_credentials_path)
-    else:
-        print("Google Application Credentials could not be fetched.")
-# Determine and print the configuration source
-config_loader = None
-
-# Try loading keys from .env file
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-ELEVENLABS_API_KEY = os.getenv('ELEVENLABS_API_KEY')
-
-if OPENAI_API_KEY and ELEVENLABS_API_KEY:
-    print("Using configuration from .env file")
-else:
-    print("One or both API keys not found in .env file.")
-
-# If keys could not be loaded from .env file, try loading from Google Secrets
-if not OPENAI_API_KEY or not ELEVENLABS_API_KEY:
-    print("Attempting to fetch API keys from Google Secrets...")
-
-    try:
-        # Retrieve the project ID from environment variables
-        project_id = os.getenv('GOOGLE_PROJECT_ID')
-        if project_id:
-            # Initialize the GoogleSecretsConfigLoader with the project ID
-            config_loader = GoogleSecretsConfigLoader(project_id)
-            print("Using configuration from Google Secrets")
-
-            # Attempt to fetch API keys from Google Secrets
-            OPENAI_API_KEY = config_loader.get('OPENAI_API_KEY')
-            ELEVENLABS_API_KEY = config_loader.get('ELEVENLABS_API_KEY')
-            # Update environment variables with fetched keys
-            os.environ['OPENAI_API_KEY'] = OPENAI_API_KEY
-            os.environ['ELEVENLABS_API_KEY'] = ELEVENLABS_API_KEY
-            if OPENAI_API_KEY and ELEVENLABS_API_KEY:
-                print("Successfully fetched API keys from Google Secrets.")
-            else:
-                print("Failed to fetch API keys from Google Secrets.")
-        else:
-            print("GOOGLE_PROJECT_ID not found in environment variables.")
-    except Exception as e:
-        print("Failed to load configuration from Google Secrets:", e)
-
-# Check if keys are fetched successfully and print them or raise an error/notification
-if OPENAI_API_KEY and ELEVENLABS_API_KEY:
-    print(f"Successfully fetched API keys.\n"
-          f"OpenAI API Key: {'***' + OPENAI_API_KEY[-3:]}\n"
-          f"ElevenLabs API Key: {'***' + ELEVENLABS_API_KEY[-3:]}")
-else:
-    print("One or both API keys could not be fetched from either .env file or Google Secrets.")
-
-def get_absolute_path(relative_path):
-    base_path = os.path.dirname(__file__)  # Get the directory of the current script
-    absolute_path = os.path.join(base_path, relative_path)  # Construct the absolute path
-    return os.path.abspath(absolute_path)  # Resolve any '..' components
-
-def find_project_root(current_path, identifier):
-    """
-    Recursively searches for a directory containing the identifier starting from current_path and moving upwards.
-    Returns the path to the directory if found, otherwise None.
-    """
-    if os.path.exists(os.path.join(current_path, identifier)):
-        return current_path  # Identifier found, return current path
-    parent_path = os.path.dirname(current_path)
-    if parent_path == current_path:
-        # Root of the filesystem reached without finding identifier
-        return None
-    return find_project_root(parent_path, identifier)  # Continue search in the parent directory
-
-def get_project_root():
-    """
-    Finds the 'berlayar' project root based on a unique identifier.
-    Adjust 'unique_identifier' as needed to match your project structure.
-    """
-    script_location = os.path.dirname(os.path.abspath(__file__))
-    unique_identifier = '.env'  # Example identifier, change as needed
-    project_root = find_project_root(script_location, unique_identifier)
-    if project_root is None:
-        raise Exception("Project root not found.")
-    return project_root
-
-def construct_path_from_root(relative_path):
-    """
-    Constructs an absolute path given a relative path from the project root.
-    """
-    project_root = get_project_root()
-    return os.path.join(project_root, relative_path)
+# Load environment variables
+load_environment_variables()
+global selected_image_generation_model
+selected_image_generation_model = "DALL·E 3"  # Default to DALL·E 3
+global user_data_collected
+user_data_collected = False  # Initialize it to False
 
 def load_story_details():
     # Check if story.json exists locally
@@ -181,6 +69,7 @@ def load_instructions():
 current_language = "en"  # Default language. This should be updated based on user selection.
 instructions = {}  # A dictionary to hold instructions based on the selected language
 story_data = load_story_details()  # Assuming this loads the entire JSON content
+
 # Initially defined at the global level
 story_progress = {
     "current_checkpoint": 0
@@ -240,6 +129,31 @@ user_data = {}
 narrative_memory = ConversationBufferMemory(input_key='user_response', output_key='story_segment')
 story_started = False
 
+async def generate_dalle_3_image(prompt):
+    try:
+        # Ensure the OpenAI API key is set
+        openai.api_key = os.getenv('OPENAI_API_KEY')
+
+        if not openai.api_key:
+            raise ValueError("No OpenAI API key provided.")
+
+        response = openai.Image.create(
+            model="dall-e-3",
+            prompt=prompt,
+            n=1,
+            size="1024x1024"
+        )
+        image_url = response['data'][0]['url']
+        print(f"Generated image URL: {image_url}")
+        return image_url
+    except Exception as e:
+        print(f"Failed to generate image with DALL-E 3: {e}")
+        return None
+
+async def display_image(image_url):
+    image_element = cl.Image(url=image_url, name="Generated Image", display="inline")
+    await cl.Message(content="Here is the cover image for your story:", author="Storyteller", elements=[image_element]).send()
+
 # Update the send_audio function to use ElevenLabs API
 async def send_audio(content):
     cleaned_content = remove_emojis(content)
@@ -280,14 +194,16 @@ async def send_audio(content):
             print("Audio generation completed.")
             return cl.Audio(name="story_segment.mp3", content=audio_data, display="inline")
 
+turn_number = 0
+
 @cl.action_callback("begin_button")
 async def on_begin_storytelling(action):
-    global story_started, story_progress, story_data, user_data
+    global story_started, story_progress, story_data, user_data, turn_number
+    turn_number = 1
     story_started = True
     # Retrieve the intro and encounter_0 text from the story data
     intro_text = story_data["checkpoints"][0]["text"]
     encounter_0_text = story_data["checkpoints"][1]["text"]
-
     # Print the first line from intro_text
     intro_first_line = intro_text.split('\n')[0]
     print("First line from intro_text:", intro_first_line)
@@ -317,10 +233,6 @@ async def on_begin_storytelling(action):
 
     # Enable streaming when creating the LLM object
     llm = OpenAI(model_name="gpt-4-0125-preview", temperature=0.45)
-    # llm = LLMChain(llm=OpenAI(), prompt=prompt)
-
-    # story_chain = LLMChain(llm=llm, prompt=initial_story_template, verbose=True, output_key='story_segment')
-    # res = await llm_math.acall(message.content, callbacks=[cl.LangchainCallbackHandler()])
     story_chain = LLMChain(llm=llm, prompt=initial_story_template, verbose=True, output_key='story_segment')
 
     initial_story_segment = story_chain.run(
@@ -338,6 +250,7 @@ async def on_begin_storytelling(action):
     await cl.Message(content=initial_story_segment, author="Storyteller").send()
     # Attempt to generate audio, but do not wait to display text
     audio_element = await send_audio(initial_story_segment)
+    print(f"Turn {turn_number}: Story segment generated.")
     if audio_element is not None:
         # Include a brief description or placeholder text as content
         await cl.Message(content="", elements=[audio_element], author="Storyteller").send()
@@ -346,7 +259,7 @@ async def on_begin_storytelling(action):
 
 @cl.on_message
 async def main(message: cl.Message):
-    global story_started, narrative_memory, story_progress, story_data, user_data
+    global story_started, narrative_memory, story_progress, story_data, user_data, turn_number
 
     if not story_started:
         # Collect user data if the story hasn't started
@@ -411,6 +324,8 @@ async def main(message: cl.Message):
             final_updated_history = f"{updated_history}\nAI: {continuation_response}"
             narrative_memory.save_context(inputs={"history": final_updated_history, "user_response": user_response}, outputs={"story_segment": continuation_response})
             await cl.Message(content="", elements=[audio_element], author="Storyteller").send()
+            turn_number += 1
+            print(f"Turn {turn_number}: Story segment generated.")
         else:
             # If audio generation fails, send the text response only
             final_updated_history = f"{updated_history}\nAI: {continuation_response}"
@@ -432,32 +347,25 @@ async def start():
     await cl.Avatar(name="Storyteller", path=storyteller_avatar_path).send()
     await cl.Avatar(name="User", path=user_avatar_path).send()
 
-    # Setting the image generation to off by default
-    global image_generation_enabled
-    image_generation_enabled = False  # Ensure this is false initially
-    print("[Debug] Initial image generation enabled status:", image_generation_enabled)
-
-    # Request user to enable/disable image generation
-    settings = await cl.ChatSettings(
+    # Request user to select image generation model
+    image_generation_model = await cl.ChatSettings(
         [
             Select(
-                id="ImageGeneration",
-                label="Enable Image Generation",
-                values=["On", "Off"],
-                initial_index=1,  # Default to 'Off' at the start
+                id="ImageGenerationModel",
+                label="Select Image Generation Model",
+                values=["DALL·E 3", "SDXL (Local)"],
+                initial_index=0,  # Default to 'DALL·E 3'
             )
         ]
     ).send()
 
-    # Update based on user selection
-    image_generation_enabled = settings["ImageGeneration"] == "On"
-    print("[Debug] Image generation enabled after selection:", image_generation_enabled)
+    selected_image_generation_model = image_generation_model["ImageGenerationModel"]
+    print("[Debug] Selected image generation model:", selected_image_generation_model)
 
-    if image_generation_enabled:
-        # Initialize the image generation pipeline only if enabled
-        print("[Debug] Initializing image generation pipeline...")
+    if selected_image_generation_model == "SDXL (Local)":
+        print("[Debug] Initializing SDXL (Local) image generation pipeline...")
         initialize_pipeline()
-    # await cl.Message(content="Hello! What's your name?", author="Storyteller").send()
+
     # Send language selection buttons
     global instructions  # Assuming 'instructions' is a global variable
     instructions = load_instructions()  # Load default language instructions first
@@ -469,48 +377,51 @@ async def start():
 
 @cl.on_settings_update
 async def setup_agent(settings):
-    global image_generation_enabled
-    image_generation_enabled = settings.get("ImageGeneration", "Off") == "On"
-    print(f"[Debug] on_settings_update - Image generation enabled: {image_generation_enabled}")
+    global selected_image_generation_model
 
-    # Optionally, re-initialize or adjust settings related to image generation here
-    if image_generation_enabled and pipeline_text2image is None:
-        print("[Debug] Re-initializing image generation pipeline due to settings update...")
-        initialize_pipeline()
+    # Update the selected model based on settings change, if applicable
+    if "ImageGenerationModel" in settings:
+        selected_image_generation_model = settings["ImageGenerationModel"]
+        print(f"[Debug] Image generation model updated: {selected_image_generation_model}")
+
+        # Prepare for image generation by initializing pipelines if needed
+        if selected_image_generation_model == "SDXL (Local)":
+            print("[Debug] Preparing SDXL (Local) image generation pipeline.")
+            initialize_pipeline()
 
 async def collect_user_data(message_text: str):
-    global user_data, instructions
+    global user_data, user_data_collected, selected_image_generation_model
 
-    # Directly using message_text as it's the raw string input from the user
+    # Proceed with collecting user data
     if 'name' not in user_data:
         user_data['name'] = message_text
         await cl.Message(content=instructions["age_prompt"], author="Storyteller").send()
     elif 'age' not in user_data:
         try:
-            # Convert the age to an integer or handle it as you see fit
             user_data['age'] = int(message_text)
+            await cl.Message(content=instructions["location_prompt"], author="Storyteller").send()
         except ValueError:
             await cl.Message(content="Please enter a valid age.", author="Storyteller").send()
-            return  # Return to await a valid input
-        await cl.Message(content=instructions["location_prompt"], author="Storyteller").send()
+            return  # Await a valid input before proceeding
     elif 'location' not in user_data:
         user_data['location'] = message_text
-        print(f"[Debug] Checking image generation flag: {image_generation_enabled}")
-        if image_generation_enabled:
-            print("[Debug] Triggering generate_and_display_cover_image")
+        user_data_collected = True  # Indicate all user data has been collected
+
+        # Now, based on the model selection, decide whether to generate the cover image
+        if selected_image_generation_model == "SDXL (Local)":
+            print("[Debug] All user data collected, generating cover image with SDXL (Local).")
             await generate_and_display_cover_image()
         else:
-            await display_begin_button()
+            print("[Debug] User data collected, awaiting further actions.")
+            await generate_and_display_cover_image()
 
 async def generate_and_display_cover_image():
-    try:
-        if not image_generation_enabled:  # Return early if image generation is not enabled
-            return
-
+    # Check the selected model stored globally or passed here
+    if selected_image_generation_model == "SDXL (Local)":
         # Get the current time and format it as a string (e.g., "2023-10-06 12:34:56")
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         # Define the text prompt for the cover image
-        prompt = f"The Sound of Stories set in {current_time} in {user_data['location']}, featuring {user_data['age']} year old {user_data['name']}, magical, cute, children illustration style, anime"
+        prompt = f"The Sound of Stories set in {current_time} in {user_data['location']}, featuring {user_data['age']} year old {user_data['name']}, magical, cute, children illustration style, anime. A boy is playing a drum happily."
 
         print("Generating image with prompt:", prompt)  # Debugging
         # Generate the cover image using the SDXL model
@@ -545,8 +456,22 @@ async def generate_and_display_cover_image():
         print("Image sent!")  # Debugging
         await display_begin_button()
 
-    except Exception as e:
-        print("Error in generate_and_display_cover_image:", str(e))  # Print any errors that occur
+    elif selected_image_generation_model == "DALL·E 3":
+        # Construct the prompt using user data
+        prompt = f"The Sound of Stories set in {user_data['location']}, featuring a {user_data['age']} year old character, in a magical, cute, children illustration style, anime. A boy is playing a drum happily."
+
+        # Generate image URL using DALL-E 3
+        image_url = await generate_dalle_3_image(prompt)
+
+        if image_url:
+            # Display the generated image
+            await display_image(image_url)
+            print("DALL-E 3 Image sent!")
+            # Display a message prompting the user to begin the story
+            await display_begin_button()
+        else:
+            print("Failed to generate image with DALL-E 3.")
+
 
 @cl.action_callback("select_language")
 async def on_language_selected(action):

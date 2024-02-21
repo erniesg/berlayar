@@ -1,0 +1,48 @@
+# Use the specified NVIDIA CUDA base image
+FROM nvidia/cuda:12.3.1-runtime-ubuntu22.04
+
+# Install system dependencies required for Python and Poetry
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    python3.10 \
+    python3.10-distutils \
+    python3.10-venv \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install pip for Python 3.10
+RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3.10
+
+# Install Poetry
+# Explicitly setting the installation path and updating the PATH environment variable
+ENV POETRY_VERSION=1.7.1 \
+    POETRY_HOME="/opt/poetry"
+RUN curl -sSL https://install.python-poetry.org | python3.10 - \
+    && ln -s ${POETRY_HOME}/bin/poetry /usr/local/bin/poetry
+
+# Configure Poetry: Do not create a virtual environment as the container itself provides isolation
+ENV PATH="${POETRY_HOME}/bin:${PATH}" \
+    POETRY_VIRTUALENVS_CREATE=false
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Copy only the files needed for installing dependencies to avoid cache invalidation
+COPY pyproject.toml poetry.lock ./
+
+# Install Python dependencies
+RUN poetry install --no-dev
+
+# Install berlayar package
+COPY . .
+RUN pip install .
+
+# Check if the Google Application Credentials key is available locally or passed as a GitHub secret
+ENV GOOGLE_APPLICATION_CREDENTIALS=/app/keys/thesoundofstories-af5f92cc3a4b.json
+
+# Run gcloud auth application-default login if the key file is found
+RUN if [ -f "$GOOGLE_APPLICATION_CREDENTIALS_PATH" ]; then \
+      gcloud auth application-default login --quiet; \
+    fi
+
+# Specify the command to run the app
+CMD ["sh", "-c", "if [ -f \"$GOOGLE_APPLICATION_CREDENTIALS_PATH\" ]; then echo 'Google Application Credentials key found.'; echo 'Last 3 characters of the credentials:'; tail -c 3 $GOOGLE_APPLICATION_CREDENTIALS_PATH; else echo 'Google Application Credentials key not found locally.'; fi; poetry run chainlit run --host=0.0.0.0 --port=${PORT:-8080} demos/thesoundofstories/main.py"]
