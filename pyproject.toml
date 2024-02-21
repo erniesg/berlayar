@@ -8,15 +8,15 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.10"
 streamlit = "^1.25.0"
-openai = "^1.12.0"
+openai = "^0.28.1"  # Updated to match pip freeze
 astor = "^0.8.1"
 pytest = "^7.1.3"
-langchain = "^0.0.251"
-deeplake = "^3.6.15"
+langchain = "^0.0.316"  # Updated to match pip freeze
+deeplake = "^3.6.15"  # Assuming no change since it's not listed in pip freeze
 python-dotenv = "^1.0.0"
 sentence-transformers = "^2.2.2"
-protobuf = "4.25.3"
-typing-extensions = "4.7.1"
+protobuf = "^3.20.0"  # Updated to match pip freeze
+typing-extensions = "^4.7.1"
 
 [tool.poetry.dev-dependencies]
 

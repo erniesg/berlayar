@@ -1,7 +1,6 @@
 import chainlit as cl
-from langchain_community.chat_models import ChatOpenAI
-#from langchain_openai import ChatOpenAI
-from langchain.prompts.prompt import PromptTemplate
+from langchain.llms import OpenAI
+from langchain.prompts import PromptTemplate
 from langchain.chains import LLMChain
 from langchain.memory import ConversationBufferMemory
 import os
@@ -280,14 +279,14 @@ async def on_begin_storytelling(action):
     )
 
     # Enable streaming when creating the LLM object
-    llm = ChatOpenAI(model_name="gpt-4-0125-preview", temperature=0.45)
+    llm = OpenAI(model_name="gpt-4-0125-preview", temperature=0.45)
     # llm = LLMChain(llm=OpenAI(), prompt=prompt)
 
     # story_chain = LLMChain(llm=llm, prompt=initial_story_template, verbose=True, output_key='story_segment')
     # res = await llm_math.acall(message.content, callbacks=[cl.LangchainCallbackHandler()])
     story_chain = LLMChain(llm=llm, prompt=initial_story_template, verbose=True, output_key='story_segment')
 
-    initial_story_segment = await story_chain.invoke(
+    initial_story_segment = story_chain.run(
         name=user_data['name'],
         age=user_data['age'],
         language=user_data['language'],
@@ -356,7 +355,7 @@ async def main(message: cl.Message):
         # Including the user's response in the existing history
         updated_history = f"{existing_history}\Human: {user_response}"
 
-        llm = ChatOpenAI(model_name="gpt-4-0125-preview", openai_api_key=OPENAI_API_KEY, temperature=0.45)
+        llm = OpenAI(model_name="gpt-4-0125-preview", temperature=0.45)
         continuation_chain = LLMChain(llm=llm, prompt=continuation_template, verbose=True, output_key='story_continuation')
         continuation_response = continuation_chain.run(
             history=updated_history,
