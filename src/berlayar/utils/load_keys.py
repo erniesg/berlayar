@@ -14,6 +14,15 @@ load_dotenv(dotenv_path)
 def load_environment_variables():
     project_id = os.getenv('GOOGLE_PROJECT_ID')
 
+    # Load Twilio Account SID and Auth Token
+    account_sid = os.getenv('TWILIO_ACCOUNT_SID')
+    auth_token = os.getenv('TWILIO_AUTH_TOKEN')
+    if account_sid and auth_token:
+        os.environ['TWILIO_ACCOUNT_SID'] = account_sid
+        os.environ['TWILIO_AUTH_TOKEN'] = auth_token
+    else:
+        print("Twilio Account SID and/or Auth Token not found in environment variables.")
+
     # Load Google Application Credentials
     google_credentials_path = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
     if not google_credentials_path:
