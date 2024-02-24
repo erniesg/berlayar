@@ -55,13 +55,13 @@ async def process_audio_message(media_url):
 
 @app.post("/webhook")
 async def webhook(request: Request):
+    response = MessagingResponse()
+    response.message("Audio message received, applying neural audio synthesis magic...")
+
     form_data = await request.form()
     media_url = form_data.get("MediaUrl0")
-    response = MessagingResponse()
 
     if media_url:
-        response.message("Audio message received, applying neural audio synthesis magic...")
-
         # Process the audio message
         transformed_file_path = await process_audio_message(media_url)
 
