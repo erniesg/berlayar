@@ -1,79 +1,65 @@
-# app.py
-
 import os
-import requests
 import base64
-from flask import Flask, request
+import uuid
+from fastapi import FastAPI, Request, Response
 from twilio.twiml.messaging_response import MessagingResponse
 from pathlib import Path
-import uuid
+import httpx
 from berlayar.utils.load_keys import load_environment_variables
 from berlayar.utils.path import construct_path_from_root
 
 # Load environment variables
 load_environment_variables()
 
-app = Flask(__name__)
+app = FastAPI()
 
-def download_media(media_url):
-    # Twilio Account SID and Auth Token
+# Load the Audio Transform Service URL from environment variables
+AUDIO_TRANSFORM_SERVICE_URL = os.getenv("AUDIO_TRANSFORM_SERVICE_URL")
+
+async def download_media(media_url):
     account_sid = os.getenv('TWILIO_ACCOUNT_SID')
     auth_token = os.getenv('TWILIO_AUTH_TOKEN')
+    auth_header = base64.b64encode(f'{account_sid}:{auth_token}'.encode()).decode()
 
-    # Make a GET request to the media URL with authentication headers
-    print("Downloading media from:", media_url)
-    headers = {"Authorization": f"Basic {base64.b64encode(f'{account_sid}:{auth_token}'.encode()).decode()}"}
-    response = requests.get(media_url, headers=headers, allow_redirects=True)
+    async with httpx.AsyncClient() as client:
+        response = await client.get(media_url, headers={"Authorization": f"Basic {auth_header}"}, follow_redirects=True)
 
-    # Check if the request was successful
     if response.status_code == 200:
-        print("Media download successful.")
-        # Generate a unique filename for the media file
-        unique_filename = str(uuid.uuid4()) + ".mp3"
-
-        # Construct the path for saving the media file
+        unique_filename = str(uuid.uuid4())
         sessions_dir = construct_path_from_root('raw_data/sessions/whatsapp')
         Path(sessions_dir).mkdir(parents=True, exist_ok=True)
-        file_path = os.path.join(sessions_dir, unique_filename)
+        file_path = os.path.join(sessions_dir, f"{unique_filename}.mp3")
 
-        # Save the media content to a file
         with open(file_path, 'wb') as f:
             f.write(response.content)
-
-        print("Media saved to:", file_path)
-
-        # Return the file path
-        return file_path
+        return file_path, unique_filename
     else:
-        # If the request fails, return None
-        print("Media download failed. Status code:", response.status_code)
-        return None
+        return None, None
 
-@app.route("/webhook", methods=['POST'])
-def webhook():
-    # Get the media URL from the request
-    media_url = request.values.get("MediaUrl0")
+@app.post("/webhook")
+async def webhook(request: Request):
+    form_data = await request.form()
+    media_url = form_data.get("MediaUrl0")
+    response = MessagingResponse()
 
     if media_url:
-        # Download the media file
-        file_path = download_media(media_url)
-
+        file_path, unique_filename = await download_media(media_url)
         if file_path:
-            # If the file was downloaded successfully, respond with a success message
-            response = MessagingResponse()
-            response.message("Your audio message has been received and saved.")
-        else:
-            # If the file download failed, respond with an error message
-            response = MessagingResponse()
-            response.message("Failed to download and save the audio message.")
+            # Prepare to call the audio transformation microservice
+            transformed_file_path = os.path.join(os.path.dirname(file_path), f"{unique_filename}_neural.mp3")
+            async with httpx.AsyncClient() as client:
+                # Define the payload for the microservice
+                payload = {
+                    "input_audio_path": file_path,
+                    "output_audio_path": transformed_file_path,
+                    "params": {"Chaos": 0.5, "Z edit index": 0.2, "Z scale": 1.0, "Z offset": 0.0}  # Example parameters
+                }
+                await client.post(AUDIO_TRANSFORM_SERVICE_URL, json=payload)
 
-        return str(response)
+            response.message("Your audio message has been received, transformed, and saved.")
+        else:
+            response.message("Failed to download and save the audio message.")
     else:
-        # If no media URL was provided, respond with a message indicating the same
-        response = MessagingResponse()
         response.message("No media received.")
 
-        return str(response)
-
-if __name__ == "__main__":
-    app.run(debug=True)
+    return Response(content=str(response), media_type="application/xml")
