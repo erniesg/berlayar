@@ -7,6 +7,7 @@ from pathlib import Path
 import httpx
 from berlayar.utils.load_keys import load_environment_variables
 from berlayar.utils.path import construct_path_from_root
+from berlayar.dataops.storage.gcs import upload_to_gcs
 
 # Load environment variables
 load_environment_variables()
@@ -15,6 +16,7 @@ app = FastAPI()
 
 # Load the Audio Transform Service URL from environment variables
 AUDIO_TRANSFORM_SERVICE_URL = os.getenv("AUDIO_TRANSFORM_SERVICE_URL")
+GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME")
 
 async def download_media(media_url):
     account_sid = os.getenv('TWILIO_ACCOUNT_SID')
@@ -36,6 +38,21 @@ async def download_media(media_url):
     else:
         return None, None
 
+async def process_audio_message(media_url):
+    file_path, unique_filename = await download_media(media_url)
+    if file_path:
+        transformed_file_path = os.path.join(os.path.dirname(file_path), f"{unique_filename}_neural.mp3")
+        async with httpx.AsyncClient() as client:
+            payload = {
+                "input_audio_path": file_path,
+                "output_audio_path": transformed_file_path,
+                "params": {"Chaos": 0.5, "Z edit index": 0.2, "Z scale": 1.0, "Z offset": 0.0}  # Example parameters
+            }
+            await client.post(AUDIO_TRANSFORM_SERVICE_URL, json=payload)
+        return transformed_file_path
+    else:
+        return None
+
 @app.post("/webhook")
 async def webhook(request: Request):
     form_data = await request.form()
@@ -43,22 +60,23 @@ async def webhook(request: Request):
     response = MessagingResponse()
 
     if media_url:
-        file_path, unique_filename = await download_media(media_url)
-        if file_path:
-            # Prepare to call the audio transformation microservice
-            transformed_file_path = os.path.join(os.path.dirname(file_path), f"{unique_filename}_neural.mp3")
-            async with httpx.AsyncClient() as client:
-                # Define the payload for the microservice
-                payload = {
-                    "input_audio_path": file_path,
-                    "output_audio_path": transformed_file_path,
-                    "params": {"Chaos": 0.5, "Z edit index": 0.2, "Z scale": 1.0, "Z offset": 0.0}  # Example parameters
-                }
-                await client.post(AUDIO_TRANSFORM_SERVICE_URL, json=payload)
+        response.message("Audio message received, applying neural audio synthesis magic...")
 
-            response.message("Your audio message has been received, transformed, and saved.")
+        # Process the audio message
+        transformed_file_path = await process_audio_message(media_url)
+
+        if transformed_file_path:
+            # Upload the transformed audio file to GCS
+            output_blob_name = f"berlayar/raw_data/sessions/{os.path.basename(transformed_file_path)}"
+            public_url = upload_to_gcs(GCS_BUCKET_NAME, transformed_file_path, output_blob_name)
+
+            if public_url:
+                # Send the transformed audio file as an audio message
+                response.message().media(public_url)
+            else:
+                response.message("Failed to upload the transformed audio file.")
         else:
-            response.message("Failed to download and save the audio message.")
+            response.message("Failed to process the audio message.")
     else:
         response.message("No media received.")
 
