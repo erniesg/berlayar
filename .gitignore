@@ -12,3 +12,6 @@ notebooks/
 .DS_Store
 converter.py:Zone.Identifier
 audio/
+.dockerignore
+cookie.txt
+tests/fixtures/
