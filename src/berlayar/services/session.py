@@ -29,10 +29,17 @@ class Session:
         # Initialize LocalStorage instance
         self.storage = LocalStorage()
 
-        # Save session data to file
-        self.save_session_to_file()
+    async def create_session(self, user_data):
+        """
+        Create a new session for the user.
+        """
+        # Logic for creating a new session
+        # This could involve creating a session ID and storing it in the database or cache
+        # For now, let's just print a message
+        print("Session created successfully")
+        await self.save_session_to_file()
 
-    def save_session_to_file(self):
+    async def save_session_to_file(self):
         """Save session information to a JSON file."""
         session_data = {
             "session_id": self.session_id,
@@ -42,7 +49,9 @@ class Session:
             "expiry_duration_hours": self.expiry_duration.total_seconds() / 3600
         }
         file_path = os.path.join("sessions", f"{self.session_id}.json")
-        self.storage.save_data(file_path, session_data)
+        print(f"Saving session data to file: {file_path}")
+        await self.storage.save_data(file_path, session_data)
+        print("Session data saved to file successfully.")
 
     def create_or_update_user(self, user_data: dict) -> UserModel:
         """Create a new user or update an existing user."""

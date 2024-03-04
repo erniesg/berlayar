@@ -2,34 +2,36 @@ import os
 import base64
 import uuid
 from fastapi import FastAPI, Request, Response
+from pydantic import ValidationError
 from twilio.twiml.messaging_response import MessagingResponse
 from pathlib import Path
 import httpx
+import logging
 from berlayar.utils.load_keys import load_environment_variables
 from berlayar.utils.path import construct_path_from_root
-from berlayar.dataops.storage.gcs import upload_to_gcs
-from fastapi import APIRouter, HTTPException, Depends
 from berlayar.schemas.user import UserModel
 from berlayar.services.user import User
 from berlayar.services.session import Session
-from berlayar.server.api import router  # Import the router from api.py
-from berlayar.services.user import User
-from berlayar.services.session import Session
+from berlayar.dataops.storage.local import LocalStorage
+# Setup logging
+logging.basicConfig(level=logging.DEBUG, filename="app.log",
+                    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 # Load environment variables
 load_environment_variables()
 
+# App initialization
 app = FastAPI()
 
-# Load the Audio Transform Service URL from environment variables
+# Environment variables
 AUDIO_TRANSFORM_SERVICE_URL = os.getenv("AUDIO_TRANSFORM_SERVICE_URL")
 GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME")
 
-# Initialize User and Session services
-user_service = User()
+# Services initialization
+local_storage = LocalStorage()
+user_service = User(storages=[local_storage])
 session_service = Session(user_service)
-
-router = APIRouter()
 
 async def download_media(media_url):
     account_sid = os.getenv('TWILIO_ACCOUNT_SID')
@@ -49,6 +51,7 @@ async def download_media(media_url):
             f.write(response.content)
         return file_path, unique_filename
     else:
+        logger.error(f"Failed to download media from {media_url}, status code {response.status_code}")
         return None, None
 
 async def process_audio_message(media_url):
@@ -59,17 +62,18 @@ async def process_audio_message(media_url):
             payload = {
                 "input_audio_path": file_path,
                 "output_audio_path": transformed_file_path,
-                "params": {"Chaos": 0.5, "Z edit index": 0.2, "Z scale": 1.0, "Z offset": 0.0}  # Example parameters
+                "params": {"Chaos": 0.5, "Z edit index": 0.2, "Z scale": 1.0, "Z offset": 0.0}
             }
-            await client.post(AUDIO_TRANSFORM_SERVICE_URL, json=payload)
-        return transformed_file_path
+            response = await client.post(AUDIO_TRANSFORM_SERVICE_URL, json=payload)
+            if response.status_code == 200:
+                return transformed_file_path
+            else:
+                logger.error(f"Failed to process audio message, status code {response.status_code}")
+                return None
     else:
         return None
 
 async def transform_audio_message(media_url):
-    """
-    Function to transform audio message using the Audio Transform Service.
-    """
     transformed_file_path = await process_audio_message(media_url)
     if transformed_file_path:
         return transformed_file_path
@@ -80,67 +84,46 @@ async def transform_audio_message(media_url):
 async def webhook(request: Request):
     response = MessagingResponse()
 
-    # Check if user is new
-    form_data = await request.form()
-    user_id = form_data.get("From")
-    existing_user = user_service.get_user_info(user_id)
+    try:
+        form_data = await request.form()
+        # Extract the mobile number, removing 'whatsapp:' prefix
+        mobile_number = form_data.get("From").replace("whatsapp:", "")
+        logger.debug(f"Webhook received with form data: {form_data}")
 
-    if not existing_user:
-        # If user is new, initiate welcome message, create user, and session
-        welcome_message = "Welcome to our service! Please provide your name, age, and location to get started."
-        response.message(welcome_message)
-
-        user_data = {
-            "user_id": user_id,
-            "language": "en",
-            "preferred_name": "Test User",
-            "age": 30,
-            "email": "test@example.com",
-            "location": "Test City",
-            "mobile_number": "+1234567890",
-            "preferences": {
-                "image_gen_model": "model_name",
-                "language": "en"
+        # Use the extracted mobile number to check for or create a new user
+        existing_user = await user_service.get_user_info(mobile_number)
+        if existing_user:
+            logger.info(f"Existing user found: Mobile {mobile_number}")
+            # Existing user logic...
+        else:
+            logger.debug("New user detected, attempting to create user and session.")
+            user_data = {
+                "preferred_name": "Placeholder Name",  # Placeholder, adjust as needed
+                "age": 30,  # Placeholder
+                "email": "placeholder@example.com",  # Placeholder
+                "location": "Placeholder Location",  # Placeholder
+                "mobile_number": mobile_number,
+                "preferences": {
+                    "image_gen_model": "Placeholder Model",  # Placeholder
+                    "language": "en"  # Placeholder
+                }
             }
-        }
 
-        create_user_response = await user_service.create_user(user_data)
-        if "user_id" in create_user_response:
-            create_session_response = await session_service.create_session(user_data)
-            if "message" in create_session_response:
-                # Additional onboarding messages can be sent here
-                pass
+            validated_user_data = UserModel.parse_obj(user_data)
+            # Convert UserModel instance to a dictionary before passing
+            create_user_response = await user_service.create_user(validated_user_data.dict())
+
+            if create_user_response:
+                logger.info(f"User created successfully with Mobile: {mobile_number}")
+                # Assuming `response.message("Your welcome message")` sends the message
+                welcome_message = "Welcome to our service! Please follow the instructions..."
+                response.message(welcome_message)
             else:
-                response.message("Failed to create session.")
-        else:
-            response.message("Failed to create user.")
+                logger.error("User creation failed, create_user_response is None.")
+                response.message("Failed to create user.")
 
-    else:
-        # For existing users, proceed with audio message processing
-        response.message("Audio message received, applying neural audio synthesis magic...")
-
-        media_url = form_data.get("MediaUrl0")
-
-        if media_url:
-            # Process the audio message
-            transformed_file_path = transform_audio_message(media_url)
-
-            if transformed_file_path:
-                # Upload the transformed audio file to GCS
-                output_blob_name = f"berlayar/raw_data/sessions/{os.path.basename(transformed_file_path)}"
-                public_url = upload_to_gcs(GCS_BUCKET_NAME, transformed_file_path, output_blob_name)
-
-                if public_url:
-                    # Send the transformed audio file as an audio message
-                    response.message().media(public_url)
-                else:
-                    response.message("Failed to upload the transformed audio file.")
-            else:
-                response.message("Failed to process the audio message.")
-        else:
-            response.message("No media received.")
+    except Exception as e:
+        logger.error(f"Unhandled exception in /webhook endpoint: {e}", exc_info=True)
+        response.message("An error occurred while processing your request.")
 
     return Response(content=str(response), media_type="application/xml")
-
-# Register the webhook endpoint with the FastAPI app
-app.post("/webhook")(webhook)

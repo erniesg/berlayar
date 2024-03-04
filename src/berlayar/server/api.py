@@ -14,7 +14,7 @@ user_service = User()
 session_service = Session(user_service)
 
 @router.post("/users/", response_model=UserModel, status_code=201)
-async def create_user(user_data: dict):
+async def create_user(user_data: UserModel):  # Here, FastAPI will automatically validate incoming data
     """
     Endpoint to create a new user.
     """

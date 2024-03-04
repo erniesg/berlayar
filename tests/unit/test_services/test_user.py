@@ -29,9 +29,10 @@ def sample_user_data():
 def sample_local_storage():
     return LocalStorage()
 
-def test_create_user_with_valid_data(sample_user_model, sample_local_storage):
+@pytest.mark.asyncio
+async def test_create_user_with_valid_data(sample_user_model, sample_local_storage):
     user = User([sample_local_storage])
-    created_user = user.create_user(sample_user_model.dict())
+    created_user = await user.create_user(sample_user_model.dict())
     assert created_user.preferred_name == sample_user_model.preferred_name
     assert created_user.age == sample_user_model.age
     assert created_user.email == sample_user_model.email
@@ -39,18 +40,20 @@ def test_create_user_with_valid_data(sample_user_model, sample_local_storage):
     assert created_user.mobile_number == sample_user_model.mobile_number
     assert created_user.preferences == sample_user_model.preferences
 
-def test_update_user_preferences(sample_user_data, sample_local_storage):
+@pytest.mark.asyncio
+async def test_update_user_preferences(sample_user_data, sample_local_storage):
     user = User([sample_local_storage])
-    created_user = user.create_user(sample_user_data)
+    created_user = await user.create_user(sample_user_data)
     new_preferences = {"image_gen_model": "SDXL (Local)", "language": "fr"}
-    updated_preferences = user.update_preferences(created_user.user_id, new_preferences)
+    updated_preferences = await user.update_preferences(created_user.user_id, new_preferences)
     assert updated_preferences['image_gen_model'] == "SDXL (Local)"
     assert updated_preferences['language'] == "fr"
 
-def test_retrieve_user_info(sample_user_data, sample_local_storage):
+@pytest.mark.asyncio
+async def test_retrieve_user_info(sample_user_data, sample_local_storage):
     user = User([sample_local_storage])
-    created_user = user.create_user(sample_user_data)
-    retrieved_user_info = user.get_user_info(created_user.user_id)
+    created_user = await user.create_user(sample_user_data)
+    retrieved_user_info = await user.get_user_info(created_user.user_id)
     assert retrieved_user_info["preferred_name"] == sample_user_data["preferred_name"]
     assert retrieved_user_info["age"] == sample_user_data["age"]
     assert retrieved_user_info["email"] == sample_user_data["email"]
