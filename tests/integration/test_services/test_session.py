@@ -11,31 +11,35 @@ class TestSessionIntegration(unittest.TestCase):
         self.local_storage_mock = MagicMock()
 
     def test_user_creation_and_session_initialization(self):
-            # Scenario: Verify that a new user can be created and a session is initialized properly
-            user_data = {
-                "user_id": "123",
-                "mobile_number": "1234567890",
-                "language": "English",
-                "location": "Test Location",
-                "age": 25,
-                "preferred_name": "Test User",
-                "email": "test@example.com",
-                "preferences": None
-            }
-            self.user_service_mock.create_user.return_value = user_data
+        # Scenario: Verify that a new user can be created and a session is initialized properly
+        user_data = {
+            "user_id": "123",
+            "mobile_number": "1234567890",
+            "language": "English",
+            "location": "Test Location",
+            "age": 25,
+            "preferred_name": "Test User",
+            "email": "test@example.com",
+            "preferences": None
+        }
+        # Mock the create_user method to return the user_data dictionary
+        self.user_service_mock.create_user.return_value = user_data
 
-            # Initialize session for the new user
-            session = Session(user_service=self.user_service_mock, storages=[self.local_storage_mock])
+        # Initialize session for the new user
+        session = Session(user_service=self.user_service_mock, storages=[self.local_storage_mock])
 
-            # Create new user and initialize session
-            session.create_or_update_user(user_data)
+        # Create new user and initialize session
+        session.create_or_update_user(user_data)
 
-            # Verify session initialization
-            self.assertEqual(session.user, user_data)
-            self.assertIsInstance(session.session_id, str)
-            self.assertIsInstance(session.start_time, datetime)
-            self.assertIsInstance(session.last_accessed, datetime)
-            self.assertFalse(session.session_end)
+        # Verify that create_user method is called
+        self.user_service_mock.create_user.assert_called_once_with(user_data)
+
+        # Verify session initialization
+        self.assertEqual(session.user, user_data)
+        self.assertIsInstance(session.session_id, str)
+        self.assertIsInstance(session.start_time, datetime)
+        self.assertIsInstance(session.last_accessed, datetime)
+        self.assertFalse(session.session_end)
 
     def test_resume_incomplete_onboarding(self):
         # Scenario: Test the ability to resume a session for an existing user with incomplete onboarding
