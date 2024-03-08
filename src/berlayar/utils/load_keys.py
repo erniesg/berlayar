@@ -5,13 +5,11 @@ from dotenv import load_dotenv
 from berlayar.config.google_secrets import GoogleSecretsConfigLoader
 from berlayar.utils.path import construct_path_from_root
 import firebase_admin
-from firebase_admin import credentials
 
 # Load .env from the project root
 dotenv_path = construct_path_from_root('.env')
 print(f"Constructed path for env: {dotenv_path}")
 load_dotenv(dotenv_path)
-
 
 def load_twilio_credentials():
     account_sid = os.getenv('TWILIO_ACCOUNT_SID')
@@ -99,3 +97,13 @@ def load_environment_variables():
                 os.environ['USER_COLLECTION_NAME'] = user_collection_name
         except Exception as e:
             print("Failed to load User Collection Name from Google Secrets:", e)
+
+    firebase_storage_bucket = os.getenv('FIREBASE_STORAGE_BUCKET')
+    if not firebase_storage_bucket:
+        try:
+            config_loader = GoogleSecretsConfigLoader(project_id)
+            firebase_storage_bucket = config_loader.get('FIREBASE_STORAGE_BUCKET')
+            if firebase_storage_bucket:
+                os.environ['FIREBASE_STORAGE_BUCKET'] = firebase_storage_bucket
+        except Exception as e:
+            print("Failed to load Firebase Storage Bucket from Google Secrets:", e)
