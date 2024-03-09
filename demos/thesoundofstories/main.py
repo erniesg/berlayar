@@ -220,19 +220,18 @@ async def on_begin_storytelling(action):
         Every story segment you tell is approximately 42-50 words long when read aloud.
         The story is titled "The Boy and the Drum" and typically starts as follows:
         {intro}
-        Tell the story from the beginning and adapt the context, location, length of story, language choice
-        and where they stay to the user's age of {age} years old,
-        location {location} and preferred language {language} and end by asking the user what the boy would like from the market to
-        invite their inputs in order to continue the interactive story. The story should be appropriate for a {age} years old.
-        Use UK English if language is English. You may use emojis to liven up the narrative. Keep your response to 42-50 words as much as possible.
-        Just for your reference, the next part of the segment is as below so you need to keep it in mind for the intro:
+        Customise the story setting, where the characters stay to the user.
+        End by asking the user what the boy would like from the market to invite their inputs in order to continue the interactive story.
+        The story should be appropriate for a {age} years old.
+        Use UK English if language is English. You may use emojis to liven up the narrative.
+        Just for your reference, the next part of the segment is as below so you need to keep it in mind for the intro generation:
         {encounter_0}
         Begin.
         """
     )
 
     # Enable streaming when creating the LLM object
-    llm = OpenAI(model_name="gpt-4-0125-preview", temperature=0.45)
+    llm = OpenAI(model_name="gpt-4-1106-preview", temperature=0.5)
     story_chain = LLMChain(llm=llm, prompt=initial_story_template, verbose=True, output_key='story_segment')
 
     initial_story_segment = story_chain.run(
@@ -284,19 +283,25 @@ async def main(message: cl.Message):
         continuation_template = PromptTemplate(
             input_variables=['history', 'next_segment', 'name', 'age', 'language', 'location'],
             template=f"""
-            Given the ongoing story for "The Boy and the Drum":
+            Given the <ongoing> story for "The Boy and the Drum":
+            <ongoing>
             {{history}}
-            And the next segment to incorporate:
+            </ongoing>
+            And the next segment to generate:
+            <next_segment>
             {{next_segment}}
-            Generate a continuation in {{language}} that transitions smoothly into the next segment of the story.
-            Note that after the AI had already generated the intro, so you only need to continue.
+            </next_segment>
+            Generate a continuation to <ongoing> in {{language}} that continues into the <next_segment>, incorporate user response into the story only where relevant
+            or simply acknowledge it as a storyteller and continue your tale.
+            Note that after the AI had already generated the intro, so you only need to continue and generate the next segment.
             Adapt the context, location, length of story, language choice and items to the user's age of {{age}} years old
             (though user need not feature in the story), location {{location}} and preferred language {{language}}
             and invite their inputs in order to continue the interactive story where suitable.
             The user's name is {{name}} and the vocabulary, language used
             and length of your response should be appropriate for a {{age}} years old.
             The boy is a fictional character separate to {{name}} and {{name}} need not be part of the story.
-            Use UK English if language is English. You may use emojis to liven up the narrative.
+            Use UK English if language is English. Keep your length to 40-100 words max. You may use emojis to liven up the narrative.
+            Do not repeat your questions, be concise, invite user inputs where relevant as a storyteller or simply ask to continue.
             """
         )
 
@@ -305,7 +310,7 @@ async def main(message: cl.Message):
         # Including the user's response in the existing history
         updated_history = f"{existing_history}\Human: {user_response}"
 
-        llm = OpenAI(model_name="gpt-4-0125-preview", temperature=0.45)
+        llm = OpenAI(model_name="gpt-4-1106-preview", temperature=0.45)
         continuation_chain = LLMChain(llm=llm, prompt=continuation_template, verbose=True, output_key='story_continuation')
         continuation_response = continuation_chain.run(
             history=updated_history,
