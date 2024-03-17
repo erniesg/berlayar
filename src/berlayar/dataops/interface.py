@@ -35,3 +35,20 @@ class StorageInterface(ABC):
     @abstractmethod
     def delete_data(self, identifier):
         pass
+
+class SessionRepositoryInterface(ABC):
+    @abstractmethod
+    def create_session(self, session_data):
+        pass
+
+    @abstractmethod
+    def update_session(self, session_id, session_data):
+        pass
+
+    @abstractmethod
+    def get_session(self, session_id):
+        pass
+
+    @abstractmethod
+    def delete_session(self, session_id):
+        pass

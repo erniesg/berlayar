@@ -1,10 +1,7 @@
-from pydantic import BaseModel, Field, EmailStr
-from typing import Optional
-import uuid
+# berlayar/schemas/user.py
 
 from pydantic import BaseModel, Field, EmailStr
 from typing import Optional
-import uuid
 
 class UserPreferences(BaseModel):
     image_gen_model: Optional[str] = None
@@ -15,7 +12,7 @@ class StoryProgress(BaseModel):
     progress: Optional[int] = Field(default=0)
 
 class UserModel(BaseModel):
-    user_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
     user_name: Optional[str] = None
     preferred_name: str
     full_name: Optional[str] = None  # Optional full name
