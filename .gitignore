@@ -15,3 +15,7 @@ audio/
 .dockerignore
 cookie.txt
 tests/fixtures/
+*.task
+*.mp3
+*.jpg
+*.png
