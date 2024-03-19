@@ -1,4 +1,5 @@
 # berlayar/dataops/session_repository.py
+
 import os
 from abc import ABC, abstractmethod
 from berlayar.dataops.interface import StorageInterface, SessionRepositoryInterface
@@ -12,14 +13,21 @@ class SessionRepository(SessionRepositoryInterface):
     def create_session(self, session_data: dict) -> str:
         # Exclude the session_id during initial creation as it's not known yet
         session_data.pop("session_id", None)  # Ensure session_id is not in dict
+
+        # Create a Session object from the session_data
         session = Session(**session_data)
+
         # Save the session data to Firestore and obtain the document ID
-        doc_id = self.storage.save_data(self.session_collection_name, session.dict(exclude={"session_id"}))
+        doc_id = self.storage.save_data(self.session_collection_name, session.dict())
+
         # Optionally update the Firestore document with the session_id if needed
         self.storage.update_data(self.session_collection_name, doc_id, {"session_id": doc_id})
+
         return doc_id
 
     def update_session(self, session_id: str, session_data: dict):
+        print("Updating session with ID:", session_id)
+        print("Session data to update:", session_data)
         self.storage.update_data(self.session_collection_name, session_id, session_data)
 
     def get_session(self, session_id: str) -> Session:

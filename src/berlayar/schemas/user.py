@@ -1,7 +1,7 @@
 # berlayar/schemas/user.py
 
 from pydantic import BaseModel, Field, EmailStr
-from typing import Optional
+from typing import Optional, List
 
 class UserPreferences(BaseModel):
     image_gen_model: Optional[str] = None
@@ -12,9 +12,9 @@ class StoryProgress(BaseModel):
     progress: Optional[int] = Field(default=0)
 
 class UserModel(BaseModel):
-    user_id: str
+    user_id: Optional[str] = None  # Made optional
     user_name: Optional[str] = None
-    preferred_name: str
+    preferred_name: Optional[str] = None
     full_name: Optional[str] = None  # Optional full name
     age: int = Field(gt=0)
     email: Optional[EmailStr] = None
@@ -22,3 +22,4 @@ class UserModel(BaseModel):
     mobile_number: str
     preferences: Optional[UserPreferences] = None
     story_progress: Optional[StoryProgress] = None
+    sessions: Optional[List[str]] = []  # Added sessions field to store session IDs

@@ -1,3 +1,5 @@
+# berlayar/dataops/user_repository.py
+
 import os
 from pydantic import ValidationError
 from berlayar.schemas.user import UserModel
@@ -11,6 +13,7 @@ class UserRepository(UserRepositoryInterface):
 
     def get_user(self, identifier):
         # Fetch user data from the storage based on the identifier
+        print("Fetching user with identifier:", identifier)
         user_data = self.storage.load_data(self.user_collection_name, identifier)
         if user_data:
             return user_data
