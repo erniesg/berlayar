@@ -12,7 +12,7 @@ class UserRepository(UserRepositoryInterface):
         self.user_collection_name = os.getenv('USER_COLLECTION_NAME', 'users')
 
     def get_user(self, identifier):
-        # Fetch user data from the storage based on the identifier
+        # Fetch user data from the storage based on the identifier asynchronously
         print("Fetching user with identifier:", identifier)
         user_data = self.storage.load_data(self.user_collection_name, identifier)
         if user_data:

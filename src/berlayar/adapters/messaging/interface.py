@@ -1,3 +1,4 @@
+#berlayar/adapters/messaging/interface.py
 from abc import ABC, abstractmethod
 
 class MessagingInterface(ABC):
@@ -16,7 +17,7 @@ class MessagingInterface(ABC):
     @abstractmethod
     async def receive_media(self, request_body: dict) -> dict:
         pass
-    
+
     @abstractmethod
     async def download_media(self, media_url: str, destination_path: str) -> bool:
         pass

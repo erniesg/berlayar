@@ -1,7 +1,10 @@
-# Inside src/berlayar/utils/common.py
+# berlayar/utils/common.py
+
 from berlayar.config.config_loader import ConfigLoader, EnvConfigLoader
 from berlayar.config.google_secrets import GoogleSecretsConfigLoader
 import os
+import asyncio
+
 # Import other secret managers as needed
 
 def get_config_loader() -> ConfigLoader:
@@ -14,3 +17,9 @@ def get_config_loader() -> ConfigLoader:
     else:
         return EnvConfigLoader()
 
+def sync_wrapper(async_func, *args, **kwargs):
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    result = loop.run_until_complete(async_func(*args, **kwargs))
+    loop.close()
+    return result

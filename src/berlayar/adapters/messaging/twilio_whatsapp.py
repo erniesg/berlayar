@@ -1,4 +1,4 @@
-# berlayar/adapters/messasing/twilio_whatsapp.py
+# berlayar/adapters/messaging/twilio_whatsapp.py
 import os
 from twilio.rest import Client
 from berlayar.adapters.messaging.interface import MessagingInterface
@@ -8,6 +8,7 @@ import urllib
 
 class TwilioWhatsAppAdapter(MessagingInterface):
     def __init__(self):
+        print("TwilioWhatsAppAdapter instance created")  # Add this line
         load_twilio_credentials()
         self.account_sid = os.getenv("TWILIO_ACCOUNT_SID")
         self.auth_token = os.getenv("TWILIO_AUTH_TOKEN")

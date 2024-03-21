@@ -1,3 +1,5 @@
+# berlayar/utils/path.py
+
 import os
 
 def get_absolute_path(relative_path):
