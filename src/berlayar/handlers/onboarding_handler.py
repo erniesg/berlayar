@@ -90,10 +90,10 @@ class OnboardingHandler:
 
         # Debug print before calling sync_wrapper
         print("Sending welcome message...")
-        self.messaging_service.send_message(session_id, welcome_message)  # Corrected call
+        self.messaging_service.send_message(mobile_number, welcome_message)  # Corrected call
 
         # Listen for user response and update language preference in session
-        user_response = self.messaging_service.receive_message(session_id)  # Corrected call
+        user_response = self.messaging_service.receive_message(mobile_number)  # Corrected call
 
         language = None
 
