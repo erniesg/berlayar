@@ -46,7 +46,6 @@ class OnboardingHandler:
             "user_id": None,
             "user_inputs": [{"mobile_number": mobile_number}],
         })
-        session_id = mobile_number
         print("Created session ID:", session_id)
 
         return session_id

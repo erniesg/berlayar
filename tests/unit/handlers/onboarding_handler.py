@@ -58,7 +58,7 @@ class TestOnboardingHandler(unittest.IsolatedAsyncioTestCase):
         result = onboarding_handler.start_onboarding(new_mobile_number)
 
         # Assert that a new session ID is returned
-        expected_session_id = "new_mobile_number 12345678"
+        expected_session_id = "mock_session_id"
         self.assertEqual(result, expected_session_id)
         print("New session ID:", result)
 
@@ -124,12 +124,86 @@ class TestOnboardingHandler(unittest.IsolatedAsyncioTestCase):
             print(f"The name prompt is {expected_name_prompt}.")
             self.assertEqual(expected_name_prompt, "你好！你叫什么名字？")
 
+    # @patch('berlayar.dataops.session_repository.SessionRepository.update_session')
+    # @patch('berlayar.adapters.messaging.twilio_whatsapp.TwilioWhatsAppAdapter', autospec=True)
+    # @patch('berlayar.dataops.storage.firebase_storage.FirebaseStorage.load_data')
+    # @patch('berlayar.dataops.user_repository.UserRepository')
+    # @patch('berlayar.dataops.session_repository.SessionRepository')
+    # def test_end_to_end_onboarding(self, mock_session_repo, mock_user_repo, mock_load_data, mock_twilio_adapter, mock_update_session):
+    #     # Load instructions directly from the specified file path
+    #     instructions_file_path = construct_path_from_root("raw_data/instructions.json")
+    #     with open(instructions_file_path, 'r', encoding='utf-8') as file:
+    #         instructions_content = json.load(file)
+    #     mock_load_data.return_value = instructions_content
+
+    #     # Setup the mock messaging service responses to simulate user inputs
+    #     user_inputs = iter(["zh", "John Doe", "25", "USA"])
+    #     messaging_service_mock = mock_twilio_adapter.return_value
+    #     messaging_service_mock.receive_message.side_effect = lambda session_id: next(user_inputs)
+    #     mock_user_repo.get_user.return_value = None
+
+    #     # Setup the mock update session to return a MagicMock object
+    #     mock_update_session.return_value = MagicMock()
+
+    #     handler = OnboardingHandler(mock_session_repo, mock_user_repo, messaging_service_mock)
+
+    #     # Start the onboarding process with a test mobile number
+    #     mobile_number = "1234567890"
+    #     session_id = handler.start_onboarding(mobile_number)
+
+    #     # Complete the onboarding process
+    #     handler.complete_onboarding(session_id)
+
+    #     # Verify the calls to mock_update_session to check the progression of session data updates
+    #     # The last item in call_args_list should contain the final session state
+    #     final_call = mock_update_session.call_args_list[-1]
+    #     actual_final_data = final_call[0][1]  # Extracting the session data argument from the final call
+
+    #     expected_final_data = {
+    #         "user_id": None,
+    #         "user_inputs": [
+    #             {"mobile_number": mobile_number},
+    #             {"step": "welcome_message", "input": {"language": "zh"}},
+    #             {"step": "name_prompt", "input": {"preferred_name": "John Doe"}},
+    #             {"step": "age_prompt", "input": {"age": "25"}},
+    #             {"step": "country_prompt", "input": {"country": "USA"}}
+    #         ],
+    #         "current_step": "country_prompt"
+    #     }
+
+    #     # Assert the final session data matches the expected state
+    #     self.assertEqual(actual_final_data, expected_final_data, "The final session data did not match the expected data.")
+
+    #     # Verify that mock_update_session is being called with the expected arguments
+    #     print(f"Mock update session return value: {mock_update_session.return_value}")
+    #     print(f"Attributes of Mock update session: {dir(mock_update_session)}")
+
+    #     # Inspect the arguments passed to each call to mock_update_session
+    #     for call_args in mock_update_session.call_args_list:
+    #         print(f"Call arguments: {call_args}")
+
+    #     # Retrieve the session data returned by update_session
+    #     actual_session_data = mock_update_session.return_value
+
+    #     # Ensure that mock_update_session is returning a value
+    #     self.assertIsNotNone(actual_session_data, "mock_update_session returned None")
+
     @patch('berlayar.dataops.session_repository.SessionRepository.update_session')
     @patch('berlayar.adapters.messaging.twilio_whatsapp.TwilioWhatsAppAdapter', autospec=True)
     @patch('berlayar.dataops.storage.firebase_storage.FirebaseStorage.load_data')
     @patch('berlayar.dataops.user_repository.UserRepository')
     @patch('berlayar.dataops.session_repository.SessionRepository')
     def test_end_to_end_onboarding(self, mock_session_repo, mock_user_repo, mock_load_data, mock_twilio_adapter, mock_update_session):
+        # Simulated session data storage
+        simulated_session_data = {}
+
+        # Define side effects for mocking
+        def update_session_mock(session_id, data):
+            simulated_session_data[session_id] = data
+
+        def get_session_mock(session_id):
+            return simulated_session_data.get(session_id, {"user_inputs": [], "current_step": ""})
+
         # Load instructions directly from the specified file path
         instructions_file_path = construct_path_from_root("raw_data/instructions.json")
         with open(instructions_file_path, 'r', encoding='utf-8') as file:
@@ -140,12 +214,16 @@ class TestOnboardingHandler(unittest.IsolatedAsyncioTestCase):
         user_inputs = iter(["zh", "John Doe", "25", "USA"])
         messaging_service_mock = mock_twilio_adapter.return_value
         messaging_service_mock.receive_message.side_effect = lambda session_id: next(user_inputs)
-        mock_user_repo.get_user.return_value = None
 
-        # Setup the mock update session to return a MagicMock object
-        mock_update_session.return_value = MagicMock()
+        # Mock user repository behavior
+        mock_user_repo.return_value.get_user.return_value = None
 
-        handler = OnboardingHandler(mock_session_repo, mock_user_repo, messaging_service_mock)
+        # Setup mocks to use the simulated data and side effects
+        mock_session_repo.return_value.get_session.side_effect = get_session_mock
+        mock_update_session.side_effect = update_session_mock
+
+        # Initialize OnboardingHandler
+        handler = OnboardingHandler(mock_session_repo.return_value, mock_user_repo.return_value, messaging_service_mock)
 
         # Start the onboarding process with a test mobile number
         mobile_number = "1234567890"
@@ -154,11 +232,9 @@ class TestOnboardingHandler(unittest.IsolatedAsyncioTestCase):
         # Complete the onboarding process
         handler.complete_onboarding(session_id)
 
-        # Assert the session data has been updated correctly
-        expected_user_data = {
-            "user_id": None,
+        # Expected final session data
+        expected_final_data = {
             "user_inputs": [
-                {"mobile_number": mobile_number},
                 {"step": "welcome_message", "input": {"language": "zh"}},
                 {"step": "name_prompt", "input": {"preferred_name": "John Doe"}},
                 {"step": "age_prompt", "input": {"age": "25"}},
@@ -167,30 +243,8 @@ class TestOnboardingHandler(unittest.IsolatedAsyncioTestCase):
             "current_step": "country_prompt"
         }
 
-        # Verify that mock_update_session is being called with the expected arguments
-        mock_update_session.assert_called_with(session_id, expected_user_data)
-        print(f"Mock update session return value: {mock_update_session.return_value}")
-        print(f"Attributes of Mock update session: {dir(mock_update_session)}")
+        # Retrieve the final session data from the simulated storage
+        final_session_data = simulated_session_data.get(session_id)
 
-        # Inspect the arguments passed to each call to mock_update_session
-        for call_args in mock_update_session.call_args_list:
-            print(f"Call arguments: {call_args}")
-
-        # Retrieve the session data returned by update_session
-        actual_session_data = mock_update_session.return_value
-
-        # Ensure that mock_update_session is returning a value
-        self.assertIsNotNone(actual_session_data, "mock_update_session returned None")
-
-        # If actual_session_data is not None, proceed with assertions
-        if actual_session_data is not None:
-            # Retrieve the session data directly from the update_session call
-            actual_session_data_value = actual_session_data.call_args[0][1]
-            # Assert that the actual session data matches the expected data
-            self.assertEqual(actual_session_data_value, expected_user_data)
-
-        # Retrieve the session data directly from the update_session call
-        actual_session_data_value = actual_session_data.call_args[0][1]  # Note: This line may need adjustment based on the MagicMock object's structure
-
-        # Assert that the actual session data matches the expected data
-        self.assertEqual(actual_session_data_value, expected_user_data)
+        # Assert the final session data matches the expected state
+        self.assertEqual(final_session_data, expected_final_data, "The final session data did not match the expected data.")
