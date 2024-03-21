@@ -18,8 +18,23 @@ def get_config_loader() -> ConfigLoader:
         return EnvConfigLoader()
 
 def sync_wrapper(async_func, *args, **kwargs):
+    print(f"Calling sync_wrapper for function: {async_func.__name__}")  # Print the name of the async function
+
+    if not asyncio.iscoroutinefunction(async_func):
+        raise TypeError("Expected an async function")
+
+    print("sync_wrapper: async function verified.")
+
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    result = loop.run_until_complete(async_func(*args, **kwargs))
-    loop.close()
+
+    try:
+        result = loop.run_until_complete(async_func(*args, **kwargs))
+        print("sync_wrapper: Successfully executed the async function.")
+    except Exception as e:
+        print("sync_wrapper: Exception occurred during execution:", e)
+        raise  # Re-raise the exception for proper error handling
+    finally:
+        loop.close()
+
     return result

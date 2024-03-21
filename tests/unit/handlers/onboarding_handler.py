@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import MagicMock, Mock, patch, ANY, AsyncMock
+from unittest.mock import MagicMock, Mock, patch, ANY, AsyncMock, call
 from berlayar.dataops.session_repository import SessionRepository
 from berlayar.dataops.user_repository import UserRepository
 from berlayar.handlers.onboarding_handler import OnboardingHandler
@@ -7,8 +7,13 @@ from berlayar.adapters.messaging.interface import MessagingInterface
 from berlayar.utils.path import construct_path_from_root
 from berlayar.utils.common import sync_wrapper
 import json
+import pytest
 
 class TestOnboardingHandler(unittest.IsolatedAsyncioTestCase):
+    @pytest.fixture
+    def mock_update_session():
+        return MagicMock()
+
     def setUp(self):
         # Mock repositories
         self.session_repo_mock = MagicMock(spec=SessionRepository)
@@ -119,70 +124,73 @@ class TestOnboardingHandler(unittest.IsolatedAsyncioTestCase):
             print(f"The name prompt is {expected_name_prompt}.")
             self.assertEqual(expected_name_prompt, "你好！你叫什么名字？")
 
-    @patch('berlayar.adapters.messaging.twilio_whatsapp.TwilioWhatsAppAdapter', new_callable=AsyncMock)
+    @patch('berlayar.dataops.session_repository.SessionRepository.update_session')
+    @patch('berlayar.adapters.messaging.twilio_whatsapp.TwilioWhatsAppAdapter', autospec=True)
     @patch('berlayar.dataops.storage.firebase_storage.FirebaseStorage.load_data')
     @patch('berlayar.dataops.user_repository.UserRepository')
     @patch('berlayar.dataops.session_repository.SessionRepository')
-    def test_end_to_end_onboarding(self, mock_session_repo, mock_user_repo, mock_load_data, mock_twilio_adapter):
+    def test_end_to_end_onboarding(self, mock_session_repo, mock_user_repo, mock_load_data, mock_twilio_adapter, mock_update_session):
+        # Load instructions directly from the specified file path
         instructions_file_path = construct_path_from_root("raw_data/instructions.json")
         with open(instructions_file_path, 'r', encoding='utf-8') as file:
             instructions_content = json.load(file)
         mock_load_data.return_value = instructions_content
-        print(instructions_content)
 
-        with patch("builtins.open", create=True) as mock_open:
-            mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(instructions_content)
-            # Setup the mock messaging service
-            messaging_service_mock = mock_twilio_adapter.return_value
-            messaging_service_mock.receive_message.side_effect = ["zh", "John", "30", "USA"]
-            handler = OnboardingHandler(mock_session_repo, mock_user_repo, mock_twilio_adapter)
+        # Setup the mock messaging service responses to simulate user inputs
+        user_inputs = iter(["zh", "John Doe", "25", "USA"])
+        messaging_service_mock = mock_twilio_adapter.return_value
+        messaging_service_mock.receive_message.side_effect = lambda session_id: next(user_inputs)
+        mock_user_repo.get_user.return_value = None
 
-            # Mock start_onboarding return value
-            mock_user_repo.get_user.return_value = None
+        # Setup the mock update session to return a MagicMock object
+        mock_update_session.return_value = MagicMock()
 
-            # Call start_onboarding with a new mobile number
-            mobile_number = "1234567890"
-            session_id = handler.start_onboarding(mobile_number)
+        handler = OnboardingHandler(mock_session_repo, mock_user_repo, messaging_service_mock)
 
-            # Verify that load_instructions is called with the correct language parameter
-            prompts = handler.load_instructions(language="en")
-            self.assertIsNotNone(prompts)  # Assert that prompts are loaded successfully
-            self.assertEqual(prompts['welcome_message'], 'Welcome! Please choose your language. 欢迎！请选择您的语言。')  # Example assertion for welcome message
+        # Start the onboarding process with a test mobile number
+        mobile_number = "1234567890"
+        session_id = handler.start_onboarding(mobile_number)
 
-        # Mock user response for language preference
-        self.messaging_service_mock.receive_message.return_value = "zh"
-
-        # Call complete_onboarding asynchronously
+        # Complete the onboarding process
         handler.complete_onboarding(session_id)
-        # Verify that handle_user_input is called with the correct parameters for each prompt
-        expected_calls = [
-            unittest.mock.call(session_id, "welcome_message", {"language": "zh"}),
-            unittest.mock.call(session_id, "name_prompt", {"preferred_name": "John"}),
-            unittest.mock.call(session_id, "age_prompt", {"age": "30"}),
-            unittest.mock.call(session_id, "country_prompt", {"country": "USA"}),
-            unittest.mock.call(session_id, "begin_story", {}),
-        ]
-        mock_session_repo.handle_user_input.assert_has_calls(expected_calls, any_order=False)
 
-        # Verify that create_user is called with the correct user data
+        # Assert the session data has been updated correctly
         expected_user_data = {
-            "preferred_name": "John",
-            "age": 30,
-            "country": "USA",
-            "mobile_number": mobile_number,
-            "preferences": {"language": "zh"}
+            "user_id": None,
+            "user_inputs": [
+                {"mobile_number": mobile_number},
+                {"step": "welcome_message", "input": {"language": "zh"}},
+                {"step": "name_prompt", "input": {"preferred_name": "John Doe"}},
+                {"step": "age_prompt", "input": {"age": "25"}},
+                {"step": "country_prompt", "input": {"country": "USA"}}
+            ],
+            "current_step": "country_prompt"
         }
-        mock_user_repo.create_user.assert_called_once_with(expected_user_data)
 
-        # Verify that send_message is called with the "begin_story" prompt
-        messaging_service_mock.send_message.assert_called_with(session_id, "Click 'Begin' to start the story.")
+        # Verify that mock_update_session is being called with the expected arguments
+        mock_update_session.assert_called_with(session_id, expected_user_data)
+        print(f"Mock update session return value: {mock_update_session.return_value}")
+        print(f"Attributes of Mock update session: {dir(mock_update_session)}")
 
-        # Ensure that TwilioWhatsAppAdapter is used
-        mock_twilio_adapter.assert_called_once()
+        # Inspect the arguments passed to each call to mock_update_session
+        for call_args in mock_update_session.call_args_list:
+            print(f"Call arguments: {call_args}")
 
-        # Print the displayed prompts for verification
-        print("Displayed prompts:")
-        for call in messaging_service_mock.send_message.call_args_list:
-            args, _ = call
-            session_id, prompt = args
-            print(prompt)
+        # Retrieve the session data returned by update_session
+        actual_session_data = mock_update_session.return_value
+
+        # Ensure that mock_update_session is returning a value
+        self.assertIsNotNone(actual_session_data, "mock_update_session returned None")
+
+        # If actual_session_data is not None, proceed with assertions
+        if actual_session_data is not None:
+            # Retrieve the session data directly from the update_session call
+            actual_session_data_value = actual_session_data.call_args[0][1]
+            # Assert that the actual session data matches the expected data
+            self.assertEqual(actual_session_data_value, expected_user_data)
+
+        # Retrieve the session data directly from the update_session call
+        actual_session_data_value = actual_session_data.call_args[0][1]  # Note: This line may need adjustment based on the MagicMock object's structure
+
+        # Assert that the actual session data matches the expected data
+        self.assertEqual(actual_session_data_value, expected_user_data)

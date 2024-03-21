@@ -29,6 +29,7 @@ class SessionRepository(SessionRepositoryInterface):
         print("Updating session with ID:", session_id)
         print("Session data to update:", session_data)
         self.storage.update_data(self.session_collection_name, session_id, session_data)
+        return session_data  # Return the updated session data
 
     def get_session(self, session_id: str) -> Session:
         # Retrieve session data from Firestore using the session_id
