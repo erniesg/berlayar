@@ -130,11 +130,11 @@ class TestOnboardingHandler(unittest.IsolatedAsyncioTestCase):
     # @patch('berlayar.dataops.user_repository.UserRepository')
     # @patch('berlayar.dataops.session_repository.SessionRepository')
     # def test_end_to_end_onboarding(self, mock_session_repo, mock_user_repo, mock_load_data, mock_twilio_adapter, mock_update_session):
-    #     # Load instructions directly from the specified file path
-    #     instructions_file_path = construct_path_from_root("raw_data/instructions.json")
-    #     with open(instructions_file_path, 'r', encoding='utf-8') as file:
-    #         instructions_content = json.load(file)
-    #     mock_load_data.return_value = instructions_content
+        # # Load instructions directly from the specified file path
+        # instructions_file_path = construct_path_from_root("raw_data/instructions.json")
+        # with open(instructions_file_path, 'r', encoding='utf-8') as file:
+        #     instructions_content = json.load(file)
+        # mock_load_data.return_value = instructions_content
 
     #     # Setup the mock messaging service responses to simulate user inputs
     #     user_inputs = iter(["zh", "John Doe", "25", "USA"])
