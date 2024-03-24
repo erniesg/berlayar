@@ -5,6 +5,7 @@ from berlayar.adapters.messaging.interface import MessagingInterface
 from berlayar.utils.load_keys import load_twilio_credentials
 import httpx
 import urllib
+import json
 
 class TwilioWhatsAppAdapter(MessagingInterface):
     def __init__(self):
@@ -49,14 +50,22 @@ class TwilioWhatsAppAdapter(MessagingInterface):
             print(f"Failed to send media message: {e}")
             return False
 
-    def receive_message(self, request_body: dict) -> dict:
-        # Example implementation
+    async def receive_message(self, request_body):
+        # If request_body is a string, it needs to be converted to a dictionary
+        if isinstance(request_body, str):
+            try:
+                request_body = json.loads(request_body)
+            except json.JSONDecodeError:
+                # If the string is not JSON, it might be form-encoded
+                request_body = dict(urllib.parse.parse_qsl(request_body))
+
+        # Now you can safely use .get on the request_body dictionary
         sender = request_body.get("From")
         text_body = request_body.get("Body")
-        print(f"Message received from {sender}: {text_body}")
-        # Process the message as needed
-        return {"sender": sender, "text_body": text_body}
 
+        # Return the sender and text body as a dictionary
+        return {"sender": sender, "text_body": text_body}
+        
     def receive_media(self, request_body: dict) -> dict:
         # Example implementation for receiving media
         sender = request_body.get("From")
