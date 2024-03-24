@@ -48,6 +48,10 @@ class OnboardingHandler:
         })
         print("Created session ID:", session_id)
 
+        # Print the session data to verify it's there
+        session_data = self.session_repo.get_session(session_id)
+        print("Session data after start_onboarding:", session_data)
+
         return session_id
 
     def handle_user_input(self, session_id: str, step: str, input_data: dict) -> bool:
@@ -56,7 +60,7 @@ class OnboardingHandler:
         session = self.session_repo.get_session(session_id)
 
         # Convert session to a dictionary
-        session_dict = session.dict()
+        session_dict = session
 
         print("Original session data:", session_dict)  # Print the original session data for debugging
 
@@ -86,17 +90,15 @@ class OnboardingHandler:
         mobile_number = user_inputs.get("mobile_number")
         prompts = self.load_instructions(language="en")
         welcome_message = prompts.get("welcome_message")
-        print("Sending welcome message:", welcome_message)
+        print(f"Sending welcome message: {welcome_message} to {mobile_number}")
 
-        # Debug print before calling sync_wrapper
-        print("Sending welcome message...")
         self.messaging_service.send_message(mobile_number, welcome_message)  # Corrected call
 
         # Listen for user response and update language preference in session
         user_response = self.messaging_service.receive_message(mobile_number)  # Corrected call
 
         language = None
-
+        print(f"Processing user response: {user_response}")
         # Check if the user's response is one of the supported languages
         if user_response.lower() == "en":
             language = "en"
@@ -104,7 +106,7 @@ class OnboardingHandler:
             language = "zh"
         else:
             # If the user's response is not one of the supported languages, default to English
-            self.messaging_service.send_message(session_id, "Sorry, we couldn't understand your language preference. Defaulting to English.")  # Corrected call
+            self.messaging_service.send_message(mobile_number, "Sorry, we couldn't understand your language preference. Defaulting to English.")  # Corrected call
             language = "en"
 
         # Handle user input for language preference
@@ -113,33 +115,40 @@ class OnboardingHandler:
         # Load prompts for the selected language
         prompts = self.load_instructions(language=language)
 
-        # Display language-specific prompts and collect user information asynchronously
         user_data = {
-            "preferred_name": user_inputs.get("preferred_name"),
-            "age": user_inputs.get("age"),
-            "country": user_inputs.get("country"),
             "mobile_number": mobile_number,
-            "preferences": {"language": language}  # Include language preference in preferences
+            "preferences": {}
         }
         for key, field in [("name_prompt", "preferred_name"), ("age_prompt", "age"), ("country_prompt", "country")]:
             prompt = prompts.get(key)
-            self.messaging_service.send_message(session_id, prompt)  # Corrected call
+            self.messaging_service.send_message(mobile_number, prompt)  # Corrected call
 
             # Debug print before calling sync_wrapper to receive user response
-            print(f"Prompt: {prompt}...")
-            user_response = self.messaging_service.receive_message(session_id)  # Corrected call
+            print(f"Sending prompt: {prompt}... to {mobile_number}")
+            user_response = self.messaging_service.receive_message(mobile_number)  # Corrected call
             print("Received user response:", user_response)
             user_data[field] = user_response
 
             # Handle user input for each prompt
             self.handle_user_input(session_id, key, {field: user_response})
 
-        # Call create_user normally since it's not async
+        # After all inputs are collected, retrieve the updated session data
+        final_session_data = self.session_repo.get_session(session_id)
+        user_inputs = final_session_data["user_inputs"]
+
+        # Extract the user data from the collected inputs
+        for input_item in user_inputs:
+            input_step = input_item.get("step")
+            input_value = input_item.get("input")
+            if input_step in ["name_prompt", "age_prompt", "country_prompt"]:
+                # Convert dict_values to a list before subscripting
+                user_data[list(input_value.keys())[0]] = list(input_value.values())[0]
+                # Call create_user with the collected user data
         user_id = self.user_repo.create_user(user_data)
 
         # Display "begin_story" prompt
         begin_story_prompt = prompts.get("begin_story")
-        self.messaging_service.send_message(session_id, begin_story_prompt)  # Corrected call
+        self.messaging_service.send_message(mobile_number, begin_story_prompt)  # Corrected call
 
         # Return user ID with a success message
         return f"User created with ID: {user_id}"

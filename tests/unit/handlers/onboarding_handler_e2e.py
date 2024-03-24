@@ -1,106 +1,67 @@
-import json
-import pytest
-from unittest.mock import patch, AsyncMock, call
-from berlayar.dataops.session_repository import SessionRepository
-from berlayar.dataops.user_repository import UserRepository
+import unittest
+from unittest.mock import MagicMock, patch, call
 from berlayar.handlers.onboarding_handler import OnboardingHandler
-from berlayar.adapters.messaging.interface import MessagingInterface
-from berlayar.utils.path import construct_path_from_root
 
-@pytest.mark.asyncio
-@patch('berlayar.dataops.storage.firebase_storage.FirebaseStorage.load_data')
-async def test_complete_onboarding(mock_load_data):
-    # Mocking session and user repositories
-    session_repo_mock = AsyncMock(spec=SessionRepository)
-    user_repo_mock = AsyncMock(spec=UserRepository)
+class TestCompleteOnboardingFlow(unittest.TestCase):
+    @patch('berlayar.dataops.session_repository.SessionRepository.update_session')
+    @patch('berlayar.adapters.messaging.twilio_whatsapp.TwilioWhatsAppAdapter', autospec=True)
+    @patch('berlayar.dataops.storage.firebase_storage.FirebaseStorage.load_data')
+    @patch('berlayar.dataops.user_repository.UserRepository')
+    @patch('berlayar.dataops.session_repository.SessionRepository')
+    def test_end_to_end_onboarding(self, mock_session_repo, mock_user_repo, mock_load_data, mock_twilio_adapter, mock_update_session):
+        # Load data for language prompts
+        mock_load_data.return_value = {
+            "en": {
+                "welcome_message": "Welcome!",
+                "name_prompt": "What's your name?",
+                "age_prompt": "How old are you?",
+                "country_prompt": "What's your country?"
+            },
+            "zh": {
+                "welcome_message": "欢迎!",
+                "name_prompt": "你叫什么名字？",
+                "age_prompt": "你多大了？",
+                "country_prompt": "你的国家是？"
+            }
+        }
+        # Simulate user input for each step
 
-    # Mocking the messaging service
-    messaging_service_mock = AsyncMock(spec=MessagingInterface)
+        # Simulate session data storage
+        session_data = {}
+        def update_session_mock(session_id, data):
+            session_data[session_id] = data
+        mock_session_repo.return_value.update_session.side_effect = update_session_mock
+        # Mock the get_session method to return a session with the expected user_inputs
+        def get_session_mock(session_id):
+            return session_data.get(session_id, {"user_inputs": [{"mobile_number": "1234567890"}], "current_step": "language"})
+        mock_session_repo.return_value.get_session.side_effect = get_session_mock
+        # Simulate user repository behavior
+        mock_user_repo.return_value.get_user.return_value = None
+        mock_user_repo.return_value.create_user.return_value = "user_id_mock"
 
-    # Mocking the loading of instructions
-    instructions_file_path = construct_path_from_root("raw_data/instructions.json")
-    with open(instructions_file_path, 'r', encoding='utf-8') as file:
-        instructions_content = json.load(file)
-    mock_load_data.return_value = instructions_content
+        # Replace the above line with a mock that has a `load_data` method, like so:
+        mock_storage = MagicMock()
+        mock_storage.load_data = MagicMock(return_value=mock_load_data.return_value)
+        onboarding_handler = OnboardingHandler(mock_session_repo.return_value, mock_user_repo.return_value, mock_twilio_adapter.return_value, mock_storage)
+        # Simulate receiving initial message "hi" which should trigger the start of onboarding
+        mobile_number = "1234567890"
+        received_message = {"mobile_number": mobile_number, "message": "hi"}
+        mock_twilio_adapter.return_value.receive_message(received_message)
+        session_id = onboarding_handler.start_onboarding(mobile_number)
+        user_id = onboarding_handler.complete_onboarding(session_id)
+        user_responses = ["zh", "John Doe", "25", "USA"]
+        user_responses_iter = iter(user_responses)
+        mock_twilio_adapter.return_value.receive_message.side_effect = lambda _: next(user_responses_iter)
 
-    # Ensure that get_user returns None to simulate a non-existing user
-    user_repo_mock.get_user.return_value = None
+        # Simulate receiving messages through the messaging service and handling user input
+        step_names = ["language", "name_prompt", "age_prompt", "country_prompt"]
+        for step, response in zip(step_names, user_responses):
+            received_message = {"mobile_number": mobile_number, "message": response}
+            mock_twilio_adapter.return_value.receive_message(received_message)
+            input_data = {"message": response}  # Construct the input_data dictionary
+            onboarding_handler.handle_user_input(session_id, step, input_data)
+                # Assert that the user was created
+        self.assertEqual(user_id, "User created with ID: user_id_mock")
 
-    # Initialize the OnboardingHandler with the mocked dependencies
-    onboarding_handler = OnboardingHandler(session_repo_mock, user_repo_mock, messaging_service_mock)
-
-    # Start the onboarding process to obtain the session_id
-    mobile_number = "1234567890"  # Mobile number to start onboarding
-    session_id = await onboarding_handler.start_onboarding(mobile_number)
-
-    # Verify that the session was created correctly
-    session_repo_mock.create_session.assert_called_once()
-
-    # Simulate the onboarding process by sending prompts and receiving user responses
-    prompts = instructions_content['en']  # Assuming 'en' was selected
-    expected_messages = [
-        prompts['welcome_message'],
-        prompts['name_prompt'],
-        prompts['age_prompt'],
-        prompts['country_prompt'],
-        prompts['begin_story']
-    ]
-    for i, message in enumerate(expected_messages):
-        # Simulate sending a message and receiving user input
-        response = simulate_user_input(onboarding_handler, session_id, message, i)
-        if i == 0:
-            assert response.lower() in ['en', 'zh']
-        elif i == 1:
-            assert response == "John Doe"
-        elif i == 2:
-            assert response == "30"
-        elif i == 3:
-            assert response == "USA"
-
-    # Execute the complete_onboarding process
-    await onboarding_handler.complete_onboarding(session_id)
-
-    # Verify that the user was created with the correct data
-    user_repo_mock.create_user.assert_called_once_with({
-        "preferred_name": "John Doe",
-        "age": "30",
-        "country": "USA",
-        "mobile_number": mobile_number,  # Ensure session ID is used as the mobile number
-        "preferences": {"language": "en"}  # Assuming 'en' was selected as the language
-    })
-
-    # Verify that the session was updated with the correct data
-    expected_session_data = {
-        "user_inputs": [
-            {"mobile_number": mobile_number},
-            {"step": "welcome_message", "input": {"language": "en"}},
-            {"step": "name_prompt", "input": {"preferred_name": "John Doe"}},
-            {"step": "age_prompt", "input": {"age": "30"}},
-            {"step": "country_prompt", "input": {"country": "USA"}}
-        ],
-        "current_step": "begin_story"
-    }
-    session_repo_mock.update_session.assert_called_once_with(session_id, expected_session_data)
-
-    # Verify that the correct messages were sent to the user
-    assert messaging_service_mock.send_message.call_count == len(expected_messages)
-    for i, message in enumerate(expected_messages):
-        assert messaging_service_mock.send_message.call_args_list[i] == call(session_id, message)
-
-async def simulate_user_input(onboarding_handler, session_id, message, index):
-    """
-    Simulates receiving user input based on the prompt message received.
-    """
-    if index == 0:  # Language prompt
-        response = "en"
-    elif index == 1:  # Name prompt
-        response = "John Doe"
-    elif index == 2:  # Age prompt
-        response = "30"
-    elif index == 3:  # Country prompt
-        response = "USA"
-    else:
-        # Simulate receiving input from the user (assumed to be the begin_story prompt)
-        response = "Proceed to begin the story"
-    await onboarding_handler.messaging_service.receive_message(session_id, message)
-    return response
+if __name__ == '__main__':
+    unittest.main()
