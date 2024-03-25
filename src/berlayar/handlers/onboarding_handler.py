@@ -4,6 +4,7 @@ from berlayar.dataops.storage.firebase_storage import FirebaseStorage  # Import 
 from berlayar.adapters.messaging.interface import MessagingInterface
 from berlayar.adapters.messaging.twilio_whatsapp import TwilioWhatsAppAdapter  # Import Twilio WhatsApp adapter
 from berlayar.utils.common import sync_wrapper
+from berlayar.schemas.user import UserModel, UserPreferences
 import os
 import json
 import logging
@@ -147,43 +148,72 @@ class OnboardingHandler:
 
         # Retrieve the session object
         session = self.session_repo.get_session(session_id)
-        # Access the 'user_inputs' attribute of the session object
-        if session and 'user_inputs' in session and session['user_inputs']:
-            user_input = session['user_inputs'][-1]  # Get the last user input
-            if user_input and 'input' in user_input and 'mobile_number' in user_input['input']:
-                mobile_number = user_input['input']['mobile_number']        
-            else:
-                # Handle the case where the mobile number is not present
-                raise ValueError("Mobile number not found in session inputs.")
-        else:
-            # Handle the case where there are no user inputs
+        if not session:
+            logging.error("Session not found.")
+            raise ValueError("Session not found.")
+
+        logging.debug(f"Session data retrieved: {session}")
+
+        # Ensure 'user_inputs' is present and not empty
+        if not hasattr(session, 'user_inputs') or not session.user_inputs:
+            logging.error("No user inputs found in session.")
             raise ValueError("No user inputs found in session.")
 
-        # Load prompts for the selected language
-        language = session.get('preferences', {}).get('language', 'en')  # Default to English if no language preference is found
-        prompts = self.load_instructions(language=language)
-
+        # Initialize a dictionary to hold the extracted user data
         user_data = {
-            "mobile_number": mobile_number,
-            "preferences": {
-                "language": language  # Include the language preference
-            }
+            "mobile_number": session.mobile_number,  # Assuming direct attribute access
+            "preferences": {"language": session.preferences.get('language') if hasattr(session, 'preferences') else 'en'},
+            "preferred_name": None,
+            "age": None,
+            "country": None,
         }
 
-        # Extract the user data from the collected inputs
-        for input_item in session['user_inputs']:
-            input_step = input_item.get("step")
-            input_value = input_item.get("input")
-            if input_step in ["name_prompt", "age_prompt", "location"]:
-                # Convert dict_values to a list before subscripting
-                user_data[list(input_value.keys())[0]] = list(input_value.values())[0]
+        logging.info("Extracting user data from session inputs.")
 
-        # Call create_user with the collected user data
-        user_id = self.user_repo.create_user(user_data)
+        # Extract the user data from the collected inputs
+        # Extract the user data from the collected inputs
+        for input_item in session.user_inputs:  # Assuming user_inputs is a list of objects
+            step = input_item.step
+            input_data = input_item.input  # Assuming 'input' is an attribute of the input_item object
+
+            logging.debug(f"Processing input for step: {step} with data: {input_data}")
+
+            if step == "name_prompt":
+                user_data["preferred_name"] = input_data.get("text_body")
+            elif step == "age_prompt":
+                user_data["age"] = int(input_data.get("text_body"))  # Convert age to int
+            elif step == "location_prompt":
+                user_data["country"] = input_data.get("text_body")
+
+        logging.info(f"User data extracted: {user_data}")
+
+        # Validate and convert user_data to UserModel
+        user_model = UserModel(
+            mobile_number=user_data["mobile_number"],
+            preferences=UserPreferences(language=user_data["preferences"].get("language")),
+            preferred_name=user_data["preferred_name"],
+            age=user_data["age"],
+            country=user_data["country"],
+        )
+
+        logging.info("Creating user with extracted data.")
+
+        # Call create_user with the UserModel data
+        user_id = self.user_repo.create_user(user_model.dict())
+
+        logging.info(f"User created with ID: {user_id}")
+
+        # Update the session to mark onboarding as complete
+        self.session_repo.update_session(session_id, {"onboarding_complete": True})
+
+        # Load prompts for the selected language
+        language = user_data["preferences"].get("language", "en")
+        prompts = self.load_instructions(language=language)
 
         # Display "begin_story" prompt
-        begin_story_prompt = prompts.get("begin_story")
-        self.messaging_service.send_message(mobile_number, begin_story_prompt)  # Corrected call
+        begin_story_prompt = prompts.get("begin_story", "Welcome to the story!")
+        self.messaging_service.send_message(user_data["mobile_number"], begin_story_prompt)
 
-        # Return user ID with a success message
+        logging.info(f"Onboarding completed for session ID: {session_id}. User ID: {user_id}")
+
         return f"User created with ID: {user_id}"

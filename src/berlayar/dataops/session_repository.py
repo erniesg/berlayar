@@ -100,9 +100,13 @@ class SessionRepository(SessionRepositoryInterface):
         logging.debug(f"[is_onboarding_complete] Checking if onboarding is complete for session ID: {session_id}")
         session = self.get_session(session_id)
         if session and session.user_inputs:
-            # Use dot notation to access the 'step' attribute of the last SessionInput object
-            last_input_step = session.user_inputs[-1].step
-            if last_input_step == 'country_prompt':
+            # Collect all steps from user inputs
+            completed_steps = {input.step for input in session.user_inputs}
+            # Define the set of required steps for onboarding to be considered complete
+            required_steps = {"language_preference", "name_prompt", "age_prompt", "location_prompt"}
+            
+            # Check if all required steps are present in the completed steps
+            if required_steps.issubset(completed_steps):
                 logging.debug("[is_onboarding_complete] Onboarding is complete.")
                 return True
 
