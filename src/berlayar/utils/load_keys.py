@@ -107,3 +107,15 @@ def load_environment_variables():
                 os.environ['FIREBASE_STORAGE_BUCKET'] = firebase_storage_bucket
         except Exception as e:
             print("Failed to load Firebase Storage Bucket from Google Secrets:", e)
+
+def get_api_key(key_name: str) -> str:
+    api_key = os.getenv(key_name)
+    if not api_key:
+        project_id = os.getenv('GOOGLE_PROJECT_ID')
+        if project_id:
+            try:
+                config_loader = GoogleSecretsConfigLoader(project_id)
+                api_key = config_loader.get(key_name)
+            except Exception as e:
+                print(f"Failed to load {key_name} from Google Secrets:", e)
+    return api_key
